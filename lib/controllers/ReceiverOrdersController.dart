@@ -1,0 +1,564 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/widgets.dart';
+import 'package:get/get.dart';
+import '../core/services/api_service.dart';
+import '../core/config/env.dart';
+import '../core/utils/snack_utils.dart';
+
+class ReceiverOrder {
+  final int id;
+  final int userId;
+  final String address;
+  final int paymentMethod;
+  final double total;
+  String status;
+  final String statusOrder;
+  final String createdAt;
+
+  ReceiverOrder({
+    required this.id,
+    required this.userId,
+    required this.address,
+    required this.paymentMethod,
+    required this.total,
+    required this.status,
+    required this.statusOrder,
+    required this.createdAt,
+  });
+
+  factory ReceiverOrder.fromJson(Map<String, dynamic> j) => ReceiverOrder(
+        id: int.tryParse('${j['id']}') ?? 0,
+        userId: int.tryParse('${j['user_id']}') ?? 0,
+        address: (j['address'] ?? j['address_text'] ?? '').toString(),
+        paymentMethod: int.tryParse('${j['payment_method'] ?? 0}') ?? 0,
+        total: (j['total'] is num)
+            ? (j['total'] as num).toDouble()
+            : (double.tryParse('${j['total'] ?? 0}') ?? 0.0),
+        status: (j['status'] ?? j['normalized_status'] ?? '').toString(),
+        statusOrder: (j['status_order'] ?? '').toString(),
+        createdAt: (j['created_at'] ?? '').toString(),
+      );
+}
+
+class ReceiverOrderItem {
+  final int orderItemId;
+  final int itemId;
+  final String title;
+  final int quantity;
+  final double unitPrice;
+  final double lineTotal;
+  final String imageUrl;
+
+  final List<Map<String, dynamic>> extras;
+  final List<Map<String, dynamic>> componentsAdd;
+  final List<Map<String, dynamic>> componentsRem;
+
+  ReceiverOrderItem({
+    required this.orderItemId,
+    required this.itemId,
+    required this.title,
+    required this.quantity,
+    required this.unitPrice,
+    required this.lineTotal,
+    required this.imageUrl,
+    this.extras = const [],
+    this.componentsAdd = const [],
+    this.componentsRem = const [],
+  });
+
+  factory ReceiverOrderItem.fromJson(Map<String, dynamic> j) {
+    final title = (j['title'] ?? j['name'] ?? 'صنف').toString();
+    final unit = (j['unit_price'] is num)
+        ? (j['unit_price'] as num).toDouble()
+        : (j['price'] is num)
+            ? (j['price'] as num).toDouble()
+            : (double.tryParse('${j['unit_price'] ?? j['price'] ?? 0}') ?? 0.0);
+    final line = (j['line_total'] is num)
+        ? (j['line_total'] as num).toDouble()
+        : (double.tryParse('${j['line_total'] ?? 0}') ?? 0.0);
+
+    List<Map<String, dynamic>> asList(dynamic v) {
+      if (v is List) {
+        return v.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return const [];
+    }
+
+    return ReceiverOrderItem(
+      orderItemId: int.tryParse('${j['order_item_id'] ?? j['id'] ?? 0}') ?? 0,
+      itemId: int.tryParse('${j['item_id'] ?? 0}') ?? 0,
+      title: title,
+      quantity: int.tryParse('${j['quantity'] ?? 1}') ?? 1,
+      unitPrice: unit,
+      lineTotal: line,
+      imageUrl: (j['image_url'] ?? '').toString(),
+      extras: asList(j['extras']),
+      componentsAdd: asList(j['components_add']),
+      componentsRem: asList(
+        j['components_rem'] ?? j['componentsRem'] ?? j['components_removed'],
+      ),
+    );
+  }
+}
+
+class ReceiverOrdersController extends GetxController
+    with WidgetsBindingObserver {
+  final _api = ApiService();
+
+  final loading = false.obs;
+  final orders = <ReceiverOrder>[].obs;
+
+  /// فلتر العرض: 'all' | 'pending' | 'processing'
+  final orderFilter = 'all'.obs;
+
+  void setOrderFilter(String value) {
+    if (value == 'all' || value == 'pending' || value == 'processing') {
+      orderFilter.value = value;
+    }
+  }
+
+  List<ReceiverOrder> get filteredOrders {
+    if (orderFilter.value == 'all') return orders;
+    return orders.where((o) => o.status == orderFilter.value).toList();
+  }
+
+  /// cache: order_id -> items
+  final Map<int, List<ReceiverOrderItem>> itemsCache = {};
+  final Map<int, int> itemsVersion = {};
+
+  // =========================
+  //   📌 كــــــــــــــاش الطلبات
+  // =========================
+  static List<ReceiverOrder>? _ordersCache;
+  static DateTime? _ordersCacheAt;
+
+  /// TTL للكاش (30 ثانية)
+  static const Duration _ordersTTL = Duration(seconds: 30);
+
+  bool _cacheFresh(DateTime? t) {
+    if (t == null) return false;
+    return DateTime.now().difference(t) < _ordersTTL;
+  }
+
+  final expandedIds = <int>{}.obs;
+  bool isExpanded(int id) => expandedIds.contains(id);
+  void setExpanded(int id, bool v) {
+    if (v) {
+      expandedIds.add(id);
+    } else {
+      expandedIds.remove(id);
+    }
+  }
+
+  Timer? _poll;
+  Timer? _liveTimer;
+
+  /// ⏱️ polling كامل للاحتياط كل 60 ثانية
+  final int pollSeconds = 60;
+
+  int _lastVersion = -1;
+
+  /// آخر مرة نجح فيها fetch حقيقي
+  DateTime? _lastFetchAt;
+
+  static const Set<String> _visibleStatuses = {'pending', 'processing'};
+
+  static const Set<String> _processingAliases = {
+    'approved',
+    'accepted',
+    'preparing',
+    'in_prep',
+    'readying',
+  };
+
+  String _normalizeStatus(String s) {
+    final x = s.toLowerCase().trim();
+    if (_processingAliases.contains(x)) return 'processing';
+    return x;
+  }
+
+  final Map<int, DateTime> _stickyUntil = {};
+  final Duration _stickyDuration = const Duration(minutes: 15);
+
+  bool _isSticky(int id) {
+    final t = _stickyUntil[id];
+    if (t == null) return false;
+    if (DateTime.now().isAfter(t)) {
+      _stickyUntil.remove(id);
+      return false;
+    }
+    return true;
+  }
+
+  /// هل التطبيق في الواجهة؟
+  bool _isForeground = true;
+
+  @override
+  void onReady() {
+    super.onReady();
+    WidgetsBinding.instance.addObserver(this);
+    fetch();
+    _startLiveWatcher();
+
+    _poll = Timer.periodic(
+      Duration(seconds: pollSeconds),
+      (_) async {
+        if (!_isForeground) return;
+
+        // لو صار fetch ناجح آخر 5 دقائق، ما فيش داعي
+        if (_lastFetchAt != null &&
+            DateTime.now().difference(_lastFetchAt!) <
+                const Duration(minutes: 5)) {
+          return;
+        }
+
+        await fetch(silent: true);
+      },
+    );
+  }
+
+  @override
+  void onClose() {
+    _poll?.cancel();
+    _liveTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.onClose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _isForeground = (state == AppLifecycleState.resumed);
+
+    if (_isForeground) {
+      _checkVersion();
+    }
+  }
+
+  void _startLiveWatcher() {
+    _liveTimer?.cancel();
+
+    /// ⏱️ خفيف: فقط ordersVersion كل 5 ثواني
+    _liveTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _checkVersion(),
+    );
+  }
+
+  Future<void> _checkVersion() async {
+    if (!_isForeground) return;
+
+    try {
+      final res = await _api.get(
+        Env.ordersVersion,
+        query: {'t': DateTime.now().millisecondsSinceEpoch.toString()},
+      );
+      final obj = (res is String) ? jsonDecode(res) : res;
+      final v = (obj is Map && obj['v'] != null)
+          ? int.tryParse('${obj['v']}')
+          : null;
+      if (v == null) return;
+      if (_lastVersion == -1) {
+        _lastVersion = v;
+        return;
+      }
+      if (v != _lastVersion) {
+        _lastVersion = v;
+        await fetch(silent: true);
+      }
+    } catch (_) {}
+  }
+
+  List<ReceiverOrder> _parseAndFilterAndCache(dynamic res) {
+    final list = <ReceiverOrder>[];
+    List data = const [];
+
+    if (res is Map && res['orders'] is List) {
+      data = res['orders'] as List;
+    } else if (res is List) {
+      data = res;
+    }
+
+    for (final e in data) {
+      final m = Map<String, dynamic>.from(e as Map);
+      final o = ReceiverOrder.fromJson(m);
+      o.status = _normalizeStatus(o.status);
+
+      final rawItems = (m['items'] is List) ? (m['items'] as List) : null;
+      if (rawItems != null) {
+        final items = rawItems
+            .map(
+              (x) => ReceiverOrderItem.fromJson(
+                Map<String, dynamic>.from(x as Map),
+              ),
+            )
+            .toList();
+
+        if (items.isNotEmpty) {
+          itemsCache[o.id] = items;
+        } else {
+          itemsCache.remove(o.id);
+        }
+        itemsVersion[o.id] = (itemsVersion[o.id] ?? 0) + 1;
+      }
+
+      if (_visibleStatuses.contains(o.status)) list.add(o);
+    }
+    return list;
+  }
+
+  Future<void> fetch({bool silent = false}) async {
+    try {
+      if (!silent) loading(true);
+
+      // استخدام الكاش لو صالح
+      if (_ordersCache != null && _cacheFresh(_ordersCacheAt)) {
+        orders.assignAll(_ordersCache!);
+        if (!silent) loading(false);
+        return;
+      }
+
+      dynamic res;
+      try {
+        res = await _api.get(
+          Env.ordersList,
+          query: {
+            'status': 'pending,processing,approved,accepted,preparing',
+            't': '${DateTime.now().millisecondsSinceEpoch}',
+          },
+        );
+      } catch (_) {
+        res = await _api.get(
+          Env.ordersList,
+          query: {'t': '${DateTime.now().millisecondsSinceEpoch}'},
+        );
+      }
+
+      final fresh = _parseAndFilterAndCache(res);
+
+      final stickyKept = <ReceiverOrder>[];
+      for (final o in orders) {
+        if (_isSticky(o.id) && _visibleStatuses.contains(o.status)) {
+          final exists = fresh.any((x) => x.id == o.id);
+          if (!exists) stickyKept.add(o);
+        }
+      }
+
+      final merged = [...fresh, ...stickyKept];
+
+      final seen = <int>{};
+      final unique = <ReceiverOrder>[];
+      for (final o in merged) {
+        if (seen.add(o.id)) unique.add(o);
+      }
+
+      unique.sort((a, b) => b.id.compareTo(a.id));
+      orders.assignAll(unique);
+
+      _ordersCache = unique;
+      _ordersCacheAt = DateTime.now();
+      _lastFetchAt = DateTime.now();
+    } catch (e) {
+      if (!silent) {
+        AppSnack.error(AppSnack.friendlyError(e, fallback: 'تعذّر جلب الطلبات'));
+      }
+    } finally {
+      if (!silent) loading(false);
+    }
+  }
+
+  Future<List<ReceiverOrderItem>> loadItems(
+    int orderId, {
+    bool force = false,
+  }) async {
+    if (!force && itemsCache.containsKey(orderId)) {
+      return itemsCache[orderId]!;
+    }
+
+    try {
+      final res = await _api.get(
+        Env.orderItems,
+        query: {
+          'order_id': '$orderId',
+          't': DateTime.now().millisecondsSinceEpoch.toString(),
+        },
+      );
+
+      try {
+        final obj = res is String ? jsonDecode(res) : res;
+        final pretty = const JsonEncoder.withIndent('  ').convert(obj);
+        Get.log('get_order_items/details($orderId): $pretty');
+      } catch (_) {}
+
+      dynamic root = res;
+      if (res is String) {
+        try {
+          root = jsonDecode(res);
+        } catch (_) {}
+      }
+
+      List raw = const [];
+
+      if (root is Map) {
+        if (root['items'] is List) {
+          raw = root['items'] as List;
+        } else if (root['data'] is List) {
+          raw = root['data'] as List;
+        } else if (root['data'] is Map && (root['data']['items'] is List)) {
+          raw = root['data']['items'] as List;
+        }
+      } else if (root is List) {
+        raw = root;
+      }
+
+      final out = raw
+          .map(
+            (e) =>
+                ReceiverOrderItem.fromJson(Map<String, dynamic>.from(e as Map)),
+          )
+          .toList();
+
+      if (out.isNotEmpty) {
+        itemsCache[orderId] = out;
+      } else {
+        itemsCache.remove(orderId);
+      }
+
+      itemsVersion[orderId] = (itemsVersion[orderId] ?? 0) + 1;
+      return out;
+    } catch (e) {
+      itemsCache.remove(orderId);
+      itemsVersion[orderId] = (itemsVersion[orderId] ?? 0) + 1;
+      return [];
+    }
+  }
+
+  Future<void> approve(int orderId) async {
+    try {
+      final res = await _api.postForm(Env.orderUpdate, {
+        'order_id': '$orderId',
+        'action': 'approve',
+      });
+
+      String? newStatus;
+      final obj = (res is String) ? jsonDecode(res) : res;
+      if (obj is Map) {
+        newStatus = (obj['status'] ?? obj['new_status'])?.toString();
+      }
+
+      final idx = orders.indexWhere((o) => o.id == orderId);
+      if (idx != -1) {
+        final normalized = _normalizeStatus(newStatus ?? 'processing');
+        orders[idx].status = normalized;
+        orders.refresh();
+      } else {
+        orders.insert(
+          0,
+          ReceiverOrder(
+            id: orderId,
+            userId: 0,
+            address: '',
+            paymentMethod: 0,
+            total: 0,
+            status: 'processing',
+            statusOrder: '',
+            createdAt: DateTime.now().toIso8601String(),
+          ),
+        );
+      }
+
+      _stickyUntil[orderId] = DateTime.now().add(_stickyDuration);
+
+      itemsCache.remove(orderId);
+      itemsVersion[orderId] = (itemsVersion[orderId] ?? 0) + 1;
+
+      _ordersCacheAt = null;
+
+      AppSnack.success('تمت الموافقة (جاري التحضير)');
+      _checkVersion();
+    } catch (e) {
+      AppSnack.error(AppSnack.friendlyError(e, fallback: 'تعذّر الموافقة'));
+    }
+  }
+
+  Future<void> reject(int orderId) async {
+    try {
+      await _api.postForm(Env.orderUpdate, {
+        'order_id': '$orderId',
+        'action': 'reject',
+      });
+    } finally {
+      orders.removeWhere((o) => o.id == orderId);
+      itemsCache.remove(orderId);
+      itemsVersion.remove(orderId);
+      _stickyUntil.remove(orderId);
+
+      _ordersCacheAt = null;
+
+      _checkVersion();
+    }
+  }
+
+  Future<void> assignDriver(int orderId, int driverId) async {
+    try {
+      await _api.postForm(Env.assignDriver, {
+        'order_id': '$orderId',
+        'driver_id': '$driverId',
+      });
+    } finally {
+      orders.removeWhere((o) => o.id == orderId);
+      itemsCache.remove(orderId);
+      itemsVersion.remove(orderId);
+      _stickyUntil.remove(orderId);
+
+      _ordersCacheAt = null;
+
+      _checkVersion();
+    }
+  }
+
+  Future<void> markDelivered(int orderId) async {
+    try {
+      final res = await _api.postForm(Env.orderUpdate, {
+        'order_id': '$orderId',
+        'action': 'delivered',
+      });
+
+      try {
+        final obj = (res is String) ? jsonDecode(res) : res;
+        if (obj is Map && obj['ok'] == false) {
+          AppSnack.error('تعذّر تحديث حالة الطلب');
+          return;
+        }
+      } catch (_) {}
+
+      orders.removeWhere((o) => o.id == orderId);
+      itemsCache.remove(orderId);
+      itemsVersion.remove(orderId);
+      _stickyUntil.remove(orderId);
+
+      _ordersCacheAt = null;
+
+      AppSnack.success('تم تسجيل الطلب كمسلَّم');
+      _checkVersion();
+    } catch (e) {
+      AppSnack.error(AppSnack.friendlyError(e, fallback: 'تعذّر تحديث حالة الطلب'));
+    }
+  }
+
+  /// 🟢 دالة لاستعمالها من الخارج لما يتم تكليف سائق من مكان آخر
+  void onOrderAssignedExternally(int orderId) {
+    orders.removeWhere((o) => o.id == orderId);
+    itemsCache.remove(orderId);
+    itemsVersion.remove(orderId);
+    _stickyUntil.remove(orderId);
+
+    if (_ordersCache != null) {
+      _ordersCache =
+          _ordersCache!.where((o) => o.id != orderId).toList();
+    }
+
+    _ordersCacheAt = null;
+    orders.refresh();
+  }
+}
