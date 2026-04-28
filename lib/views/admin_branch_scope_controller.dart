@@ -7,7 +7,7 @@ import '../data/models/branch_model.dart';
 class AdminBranchScopeBar extends GetView<AdminBranchScopeController> {
   const AdminBranchScopeBar({super.key});
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -25,14 +25,14 @@ class AdminBranchScopeBar extends GetView<AdminBranchScopeController> {
           children: [
             const Icon(
               Icons.store_mall_directory_outlined,
-              color: brown,
+              color: primary,
               size: 18,
             ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 currentId == null
-                    ? 'اختر الفرع قبل الإضافة أو التعديل'
+                    ? 'اختر الفرع قبل الإضافة أو عرض البيانات'
                     : 'الفرع الحالي: ${controller.currentBranchLabel}',
                 style: const TextStyle(fontWeight: FontWeight.w700),
                 overflow: TextOverflow.ellipsis,

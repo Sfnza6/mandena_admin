@@ -6,8 +6,8 @@ import '../../controllers/profile_controller.dart';
 class ProfileView extends GetView<ProfileController> {
   const ProfileView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
-  static const pageBg = Color(0xFFF3F0ED);
+  static const primary = Color(0xFFB85A1B);
+  static const pageBg = Color(0xFFF7F7F9);
 
   @override
   Widget build(BuildContext context) {
@@ -135,7 +135,9 @@ class ProfileView extends GetView<ProfileController> {
                   // زر الإدارة لو كان ضمن الكرت الأول
                   if (it.title.trim() == 'الإدارة' ||
                       it.iconName == 'admin_panel_settings_outlined') {
-                    Get.toNamed('/admin/staff');
+                    if (auth.isOwner) {
+                      Get.toNamed('/admin/staff');
+                    }
                     return;
                   }
                 },
@@ -159,7 +161,9 @@ class ProfileView extends GetView<ProfileController> {
                   }
                   if (it.title.trim() == 'الإدارة' ||
                       it.iconName == 'admin_panel_settings_outlined') {
-                    Get.toNamed('/admin/staff');
+                    if (auth.isOwner) {
+                      Get.toNamed('/admin/staff');
+                    }
                     return;
                   }
                 },
@@ -211,7 +215,7 @@ class _AvatarFallback extends StatelessWidget {
       height: 64,
       color: Colors.white,
       alignment: Alignment.center,
-      child: const Icon(Icons.person, color: ProfileView.brown),
+      child: const Icon(Icons.person, color: ProfileView.primary),
     );
   }
 }
@@ -221,7 +225,7 @@ class _SectionCard extends StatelessWidget {
   final List<ProfileItem> items;
   final void Function(int index) onTapItem;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   IconData _iconFromName(String name) {
     switch (name) {
@@ -251,7 +255,7 @@ class _SectionCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
-          color: brown,
+          color: primary,
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
@@ -278,7 +282,7 @@ class _SectionCard extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
-                    child: Icon(icon, color: brown),
+                    child: Icon(icon, color: primary),
                   ),
                   leading: const Icon(Icons.chevron_left, color: Colors.white),
                   title: Text(
@@ -331,14 +335,14 @@ class _LogoutTile extends StatelessWidget {
           ),
           child: Row(
             children: const [
-              Icon(Icons.chevron_left, color: Color(0xFF6F3F17)),
+              Icon(Icons.chevron_left, color: Color(0xFFB85A1B)),
               Spacer(),
               Text('تسجيل خروج', style: TextStyle(fontWeight: FontWeight.w800)),
               SizedBox(width: 8),
               CircleAvatar(
                 radius: 16,
                 backgroundColor: Color(0xFFF5E6DC),
-                child: Icon(Icons.logout, color: Color(0xFF6F3F17), size: 18),
+                child: Icon(Icons.logout, color: Color(0xFFB85A1B), size: 18),
               ),
             ],
           ),

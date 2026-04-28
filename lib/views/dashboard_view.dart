@@ -8,6 +8,8 @@ import 'package:mandena_admin/views/widgets/stat_card.dart';
 // import 'package:iforenta_admin_2/views/widgets/reviews_carousel.dart';
 
 import '../../controllers/dashboard_controller.dart';
+import '../../controllers/AuthController.dart';
+import '../../views/admin_branch_scope_controller.dart';
 
 // Widgets مشتركة
 
@@ -29,6 +31,15 @@ class DashboardView extends GetView<DashboardController> {
               const HeaderBar(),
               const SizedBox(height: 12),
 
+              Obx(() {
+                final auth = Get.find<AuthController>();
+                if (!auth.isOwner) return const SizedBox.shrink();
+                return const Padding(
+                  padding: EdgeInsets.only(bottom: 12),
+                  child: AdminBranchScopeBar(),
+                );
+              }),
+
               // بطاقات الإحصائيات من الـ API
               Obx(() {
                 final loading = controller.loadingStats.value;
@@ -48,7 +59,7 @@ class DashboardView extends GetView<DashboardController> {
                         width: cardWidth,
                         height: 92,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEFE6DF),
+                          color: const Color(0xFFF6E8DD),
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),

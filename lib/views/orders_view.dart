@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/orders_controller.dart';
+import '../../data/models/branch_model.dart';
 import '../../data/models/order_model.dart';
 
 class OrdersView extends StatelessWidget {
   const OrdersView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
-  static const pageBg = Color(0xFFF3F0ED);
+  static const primary = Color(0xFFB85A1B);
+  static const pageBg = Color(0xFFF7F7F9);
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +20,7 @@ class OrdersView extends StatelessWidget {
       child: Scaffold(
         backgroundColor: pageBg,
         appBar: AppBar(
-          backgroundColor: brown,
+          backgroundColor: primary,
           title: const Text(
             'سجل الطلبات',
             style: TextStyle(color: Colors.white),
@@ -67,7 +68,7 @@ class _SearchAndTabs extends StatelessWidget {
   const _SearchAndTabs({required this.controller});
   final OrdersController controller;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +84,7 @@ class _SearchAndTabs extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
       decoration: BoxDecoration(
-        color: brown,
+        color: primary,
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(18)),
         boxShadow: [
           BoxShadow(
@@ -111,7 +112,52 @@ class _SearchAndTabs extends StatelessWidget {
               ),
             ),
           ),
+
+          if (controller.canFilterBranches)
+            Obx(() {
+              return Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Container(
+                  height: 42,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: controller.branchFilterValue,
+                      isExpanded: true,
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                      items: [
+                        const DropdownMenuItem<int>(
+                          value: 0,
+                          child: Text(
+                            'كل الفروع',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        ...controller.branches.map(
+                          (BranchModel b) => DropdownMenuItem<int>(
+                            value: b.id,
+                            child: Text(
+                              b.name.trim().isNotEmpty
+                                  ? b.name
+                                  : 'فرع #${b.id}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      ],
+                      onChanged: (v) => controller.setBranchFilter(v ?? 0),
+                    ),
+                  ),
+                ),
+              );
+            }),
+
           const SizedBox(height: 10),
+
           Obx(() {
             final sel = controller.filterIndex.value;
             return SingleChildScrollView(
@@ -128,10 +174,10 @@ class _SearchAndTabs extends StatelessWidget {
                       label: Text(tabs[i]),
                       selectedColor: Colors.white,
                       labelStyle: TextStyle(
-                        color: active ? brown : Colors.white,
+                        color: active ? primary : Colors.white,
                         fontWeight: FontWeight.w800,
                       ),
-                      backgroundColor: const Color(0xFF8E5A34),
+                      backgroundColor: const Color.fromARGB(255, 145, 58, 0),
                       side: BorderSide.none,
                     ),
                   );
@@ -152,7 +198,7 @@ class _OrderCard extends StatelessWidget {
 
   final OrderModel order;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   Color _statusColor(String s) {
     return switch (s) {
@@ -207,7 +253,7 @@ class _OrderCard extends StatelessWidget {
                 '#${order.id}',
                 style: const TextStyle(
                   fontWeight: FontWeight.w900,
-                  color: brown,
+                  color: primary,
                 ),
               ),
               const Spacer(),
@@ -288,7 +334,7 @@ class _OrderCard extends StatelessWidget {
                 '${order.total.toStringAsFixed(2)} د.ل',
                 style: const TextStyle(
                   fontWeight: FontWeight.w900,
-                  color: brown,
+                  color: primary,
                 ),
               ),
               const Spacer(),

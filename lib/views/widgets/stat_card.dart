@@ -11,7 +11,7 @@ class StatCard extends StatelessWidget {
     required this.icon,
   });
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +19,7 @@ class StatCard extends StatelessWidget {
       height: 92,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: brown,
+        color: primary,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(

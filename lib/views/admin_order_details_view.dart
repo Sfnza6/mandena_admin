@@ -5,11 +5,12 @@ import 'package:mandena_admin/controllers/admin_order_details_controller.dart';
 class AdminOrderDetailsView extends GetView<AdminOrderDetailsController> {
   const AdminOrderDetailsView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
+  static const cardBg = Color(0xFFFFFCFA);
+  static const soft = Color(0xFFF3ECE6);
 
   @override
   Widget build(BuildContext context) {
-    // تأكيد تسجيل الكنترولر
     if (!Get.isRegistered<AdminOrderDetailsController>()) {
       Get.put(AdminOrderDetailsController());
     }
@@ -17,16 +18,19 @@ class AdminOrderDetailsView extends GetView<AdminOrderDetailsController> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
+        backgroundColor: const Color(0xFFF7F5F3),
         appBar: AppBar(
           title: const Text('تفاصيل الطلب'),
+          centerTitle: true,
           backgroundColor: Colors.white,
           foregroundColor: Colors.black87,
-          elevation: 0.4,
+          elevation: .2,
         ),
         body: Obx(() {
           if (controller.loading.value) {
             return const Center(child: CircularProgressIndicator());
           }
+
           final h = controller.header.value;
           if (h == null) {
             return Center(
@@ -44,270 +48,131 @@ class AdminOrderDetailsView extends GetView<AdminOrderDetailsController> {
             );
           }
 
-          final d = controller.driver.value;
+          final customer = controller.customer.value;
+          final branch = controller.branch.value;
+          final driver = controller.driver.value;
 
           return RefreshIndicator(
             onRefresh: controller.fetch,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
-                // رقم الطلب + شارة الحالة
-                Row(
-                  children: [
-                    Text(
-                      '#${h.id}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: brown.withOpacity(.08),
-                        border: Border.all(color: brown.withOpacity(.25)),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        h.status,
-                        style: const TextStyle(color: brown),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'نوع التوصيل: ${controller.deliveryTypeArabic(h.statusOrder)}',
-                  style: const TextStyle(color: Colors.black54),
-                ),
-                if (h.address.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'العنوان: ${h.address}',
-                    style: const TextStyle(color: Colors.black54),
-                  ),
-                ],
-                const SizedBox(height: 4),
-                Text(
-                  'التاريخ: ${h.createdAt}',
-                  style: const TextStyle(color: Colors.black45),
-                ),
-
-                // ✅ 🧾 معلومات الدفع (من نفس بيانات اليوزر)
-                const SizedBox(height: 8),
-                _buildPaymentInfoAdmin(h),
-
-                const SizedBox(height: 12),
-                const Divider(),
-
-                const SizedBox(height: 10),
-                const Text(
-                  'الأصناف',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                ),
-                const SizedBox(height: 8),
-
-                ...controller.items.map(
-                  (it) => Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF7F2EC),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // السطر الرئيسي للصنف
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    it.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'الكمية: ${it.quantity} × ${it.price.toStringAsFixed(2)} د.ل',
-                                    style: const TextStyle(
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              (it.lineTotalWithExtras > 0
-                                      ? it.lineTotalWithExtras
-                                      : it.lineTotal)
-                                  .toStringAsFixed(2),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Text('د.ل'),
-                          ],
-                        ),
-
-                        // الإضافات
-                        if (it.extras.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          const Text(
-                            'الإضافات',
-                            style: TextStyle(color: Colors.black54),
-                          ),
-                          const SizedBox(height: 6),
-                          ...it.extras.map(
-                            (ex) => Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    '• ${ex.name} (${ex.quantity} × ${ex.price.toStringAsFixed(2)} د.ل)',
-                                  ),
-                                ),
-                                Text(ex.lineTotal.toStringAsFixed(2)),
-                                const SizedBox(width: 4),
-                                const Text('د.ل'),
-                              ],
-                            ),
-                          ),
-                        ],
-
-                        // المكوّنات المُضافة
-                        if (it.componentsAdd.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          const Text(
-                            'المكوّنات المُضافة',
-                            style: TextStyle(color: Colors.black54),
-                          ),
-                          const SizedBox(height: 6),
-                          ...it.componentsAdd.map(
-                            (c) => Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    '• ${c.name} (${c.quantity} × ${c.price.toStringAsFixed(2)} د.ل)',
-                                  ),
-                                ),
-                                Text((c.price * c.quantity).toStringAsFixed(2)),
-                                const SizedBox(width: 4),
-                                const Text('د.ل'),
-                              ],
-                            ),
-                          ),
-                        ],
-
-                        // المكوّنات المحذوفة (بدون سعر)
-                        if (it.componentsRem.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          const Text(
-                            'المكوّنات المحذوفة',
-                            style: TextStyle(color: Colors.black54),
-                          ),
-                          const SizedBox(height: 6),
-                          ...it.componentsRem.map((c) {
-                            final label = (c.name.trim().isNotEmpty)
-                                ? c.name
-                                : (c.id > 0 ? '#${c.id}' : '— محذوف —');
-                            return Row(
-                              children: [Expanded(child: Text('• $label'))],
-                            );
-                          }),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-
-                const Divider(height: 28),
-
-                // رسوم التوصيل
-                Row(
-                  children: const [
-                    Text(
-                      'رسوم التوصيل',
-                      style: TextStyle(color: Colors.black54),
-                    ),
-                    Spacer(),
-                  ],
-                ),
-                Row(
-                  children: [
-                    const SizedBox(),
-                    const Spacer(),
-                    Text(h.deliveryFee.toStringAsFixed(2)),
-                    const SizedBox(width: 4),
-                    const Text('د.ل'),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // الإجمالي النهائي
-                Row(
-                  children: const [
-                    Text(
-                      'الإجمالي النهائي',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                    Spacer(),
-                  ],
-                ),
-                Row(
-                  children: [
-                    const SizedBox(),
-                    const Spacer(),
-                    Text(
-                      controller.computedGrandTotal.toStringAsFixed(2),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Text('د.ل'),
-                  ],
-                ),
-
-                // السائق
-                if (d != null) ...[
-                  const Divider(height: 28),
-                  const Text(
-                    'السائق',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
+                _heroCard(h, branch),
+                const SizedBox(height: 14),
+                _sectionCard(
+                  title: 'بيانات العميل',
+                  icon: Icons.person_outline_rounded,
+                  child: Column(
                     children: [
-                      const Icon(Icons.person_pin, color: brown),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          (d['name'] ?? '-').toString(),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                      _infoRow(
+                        'الاسم',
+                        customer?.name.isNotEmpty == true
+                            ? customer!.name
+                            : 'غير متوفر',
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        (d['phone'] ?? '').toString(),
-                        style: const TextStyle(color: Colors.blue),
+                      _infoRow(
+                        'الهاتف',
+                        customer?.phone.isNotEmpty == true
+                            ? customer!.phone
+                            : 'غير متوفر',
+                      ),
+                      _infoRow(
+                        'العنوان',
+                        h.address.trim().isNotEmpty
+                            ? h.address.trim()
+                            : (customer?.address.isNotEmpty == true
+                                  ? customer!.address
+                                  : 'غير متوفر'),
+                        multiLine: true,
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: 14),
+                _sectionCard(
+                  title: 'بيانات الطلب',
+                  icon: Icons.receipt_long_outlined,
+                  child: Column(
+                    children: [
+                      _infoRow('رقم الطلب', '#${h.id}'),
+                      _infoRow('حالة الطلب', controller.statusArabic(h.status)),
+                      _infoRow(
+                        'نوع الطلب',
+                        controller.orderTypeArabic(h.statusOrder),
+                      ),
+                      _infoRow('التاريخ', h.createdAt),
+                      _infoRow(
+                        'الفرع',
+                        branch?.name.isNotEmpty == true
+                            ? branch!.name
+                            : 'غير متوفر',
+                      ),
+                      _infoRow(
+                        'عنوان الفرع',
+                        branch?.address.isNotEmpty == true
+                            ? branch!.address
+                            : 'غير متوفر',
+                        multiLine: true,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _sectionCard(
+                  title: 'معلومات الدفع',
+                  icon: Icons.account_balance_wallet_outlined,
+                  child: Column(
+                    children: [
+                      _infoRow(
+                        'طريقة الدفع',
+                        controller.paymentMethodArabic(h),
+                      ),
+                      if (h.gateway.trim().isNotEmpty &&
+                          h.gateway.toLowerCase() != 'cash')
+                        _infoRow(
+                          'بوابة الدفع',
+                          controller.gatewayArabic(h.gateway),
+                        ),
+                    ],
+                  ),
+                ),
+                if (driver != null) ...[
+                  const SizedBox(height: 14),
+                  _sectionCard(
+                    title: 'السائق',
+                    icon: Icons.local_shipping_outlined,
+                    child: Column(
+                      children: [
+                        _infoRow(
+                          'الاسم',
+                          (driver['name'] ?? 'غير متوفر').toString(),
+                        ),
+                        _infoRow(
+                          'الهاتف',
+                          (driver['phone'] ?? 'غير متوفر').toString(),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
+                const SizedBox(height: 16),
+                const Padding(
+                  padding: EdgeInsets.only(right: 4, bottom: 8),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      'الأصناف',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+                ...controller.items.map(_itemCard),
+                const SizedBox(height: 8),
+                _totalsCard(h),
               ],
             ),
           );
@@ -316,82 +181,353 @@ class AdminOrderDetailsView extends GetView<AdminOrderDetailsController> {
     );
   }
 
-  /// ✅ كارت بسيط لمعلومات الدفع في لوحة الأدمن
-  Widget _buildPaymentInfoAdmin(AdminOrderHeaderModel h) {
-    final isOnline =
-        h.paymentMethod == 1 ||
-        (h.gateway.isNotEmpty && h.gateway.toLowerCase() != 'cash');
-
-    String methodLabel = isOnline ? 'دفع أونلاين' : 'دفع عند الاستلام';
-
-    String bankLabel = 'غير محدد';
-    switch (h.gateway.toLowerCase()) {
-      case 'yusor':
-      case 'yesser':
-        bankLabel = 'مصرف الجمهورية – يسر أونلاين';
-        break;
-      case 'sahari':
-        bankLabel = 'مصرف الصحاري';
-        break;
-      case 'aman':
-        bankLabel = 'مصرف الأمان';
-        break;
-      case 'tadawul':
-        bankLabel = 'تداول / بطاقة مصرفية';
-        break;
-      case 'cash':
-      case '':
-        bankLabel = isOnline ? 'غير محدد' : '—';
-        break;
-      default:
-        bankLabel = h.gateway;
-    }
-
-    return Card(
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'معلومات الدفع',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                const Text(
-                  'طريقة الدفع: ',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+  Widget _heroCard(AdminOrderHeaderModel h, AdminOrderBranchModel? branch) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: primary.withOpacity(.14)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.03),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
                 ),
-                Text(
-                  methodLabel,
-                  style: const TextStyle(color: Colors.black87),
+                decoration: BoxDecoration(
+                  color: primary.withOpacity(.08),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: primary.withOpacity(.18)),
                 ),
-              ],
-            ),
-            if (isOnline) ...[
-              const SizedBox(height: 4),
-              Row(
+                child: Text(
+                  controller.statusArabic(h.status),
+                  style: const TextStyle(
+                    color: primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   const Text(
-                    'المصرف: ',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                    'ملف الطلب',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(color: Colors.black45, fontSize: 12),
                   ),
-                  Flexible(
-                    child: Text(
-                      bankLabel,
-                      style: const TextStyle(color: Colors.black87),
-                      overflow: TextOverflow.ellipsis,
+                  const SizedBox(height: 4),
+                  Text(
+                    '#${h.id}',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ],
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            alignment: WrapAlignment.start,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _pill(
+                Icons.storefront_outlined,
+                branch?.name.isNotEmpty == true ? branch!.name : 'غير متوفر',
+              ),
+              _pill(
+                Icons.delivery_dining_outlined,
+                controller.orderTypeArabic(h.statusOrder),
+              ),
+              _pill(Icons.schedule_rounded, h.createdAt),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: soft,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: primary.withOpacity(.1)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(text, style: const TextStyle(fontSize: 12.5, height: 1.2)),
+          const SizedBox(width: 6),
+          Icon(icon, size: 16, color: primary),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionCard({
+    required String title,
+    required IconData icon,
+    required Widget child,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: primary.withOpacity(.10)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Text(
+                title,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: soft,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: primary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value, {bool multiLine = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        crossAxisAlignment: multiLine
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            flex: 3,
+            child: Text(
+              label,
+              textAlign: TextAlign.right,
+              style: const TextStyle(color: Colors.black54, fontSize: 14.5),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            flex: 5,
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(
+                fontSize: 15.2,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _itemCard(AdminOrderItemModel it) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: primary.withOpacity(.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'الإجمالي',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(color: Colors.black45, fontSize: 12),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${it.lineTotalWithExtras.toStringAsFixed(2)} د.ل',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      it.name,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${it.quantity} × ${it.price.toStringAsFixed(2)} د.ل',
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(color: Colors.black54),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (it.extras.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _subTitle('الإضافات'),
+            ...it.extras.map(
+              (e) => _detailLine(
+                '• ${e.name}',
+                '${e.quantity} × ${e.price.toStringAsFixed(2)} د.ل',
+              ),
+            ),
           ],
-        ),
+          if (it.componentsAdd.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _subTitle('المكوّنات المضافة'),
+            ...it.componentsAdd.map(
+              (c) => _detailLine(
+                '• ${c.name}',
+                '${c.quantity} × ${c.price.toStringAsFixed(2)} د.ل',
+              ),
+            ),
+          ],
+          if (it.componentsRem.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _subTitle('المكوّنات المحذوفة'),
+            ...it.componentsRem.map(
+              (c) => _detailLine(
+                '• ${c.name.trim().isNotEmpty ? c.name : '—'}',
+                'محذوف',
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _subTitle(String text) {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Text(
+        text,
+        textAlign: TextAlign.right,
+        style: const TextStyle(fontWeight: FontWeight.w700, color: primary),
+      ),
+    );
+  }
+
+  Widget _detailLine(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        children: [
+          Text(
+            value,
+            textAlign: TextAlign.left,
+            style: const TextStyle(color: Colors.black54),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(label, textAlign: TextAlign.right)),
+        ],
+      ),
+    );
+  }
+
+  Widget _totalsCard(AdminOrderHeaderModel h) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: primary.withOpacity(.12)),
+      ),
+      child: Column(
+        children: [
+          _moneyRow('سعر الطلبية', controller.itemsBaseTotal),
+          _moneyRow('سعر الإضافات والمكوّنات', controller.extrasAndAddsTotal),
+          _moneyRow('سعر التوصيل', h.deliveryFee),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Divider(height: 1),
+          ),
+          _moneyRow(
+            'الإجمالي النهائي',
+            controller.computedGrandTotal,
+            bold: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _moneyRow(String label, double value, {bool bold = false}) {
+    final style = TextStyle(
+      fontWeight: bold ? FontWeight.w900 : FontWeight.w600,
+      fontSize: bold ? 17 : 15,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              textAlign: TextAlign.right,
+              style: style.copyWith(
+                color: bold ? Colors.black87 : Colors.black54,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text('${value.toStringAsFixed(2)} د.ل', style: style),
+        ],
       ),
     );
   }

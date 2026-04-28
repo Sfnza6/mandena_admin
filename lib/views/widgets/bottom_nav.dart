@@ -19,14 +19,14 @@ class BottomNav extends StatelessWidget {
     this.onMiddle,
   });
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 62,
       decoration: const BoxDecoration(
-        color: brown,
+        color: primary,
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
       child: Row(

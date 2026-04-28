@@ -6,7 +6,7 @@ import '../../data/models/user_model.dart';
 class UsersView extends GetView<UsersController> {
   const UsersView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +14,7 @@ class UsersView extends GetView<UsersController> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: brown,
+          backgroundColor: primary,
           title: const Text('المستخدمين'),
           centerTitle: true,
           bottom: PreferredSize(
@@ -97,7 +97,7 @@ class _UserTile extends StatelessWidget {
   const _UserTile(this.u);
   final UserModel u;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +116,7 @@ class _UserTile extends StatelessWidget {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: brown,
+          color: primary,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 8),
@@ -136,7 +136,7 @@ class _UserTile extends StatelessWidget {
                 ? null
                 : NetworkImage(u.avatarUrl),
             child: (u.avatarUrl.isEmpty)
-                ? const Icon(Icons.person, color: brown)
+                ? const Icon(Icons.person, color: primary)
                 : null,
           ),
           title: Text(

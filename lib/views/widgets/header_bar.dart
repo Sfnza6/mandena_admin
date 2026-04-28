@@ -4,9 +4,9 @@ import 'package:mandena_admin/controllers/AuthController.dart';
 import '../../../../core/routes/app_routes.dart';
 
 class HeaderBar extends StatelessWidget {
+  static const primary = Color(0xFFB85A1B);
+  static const softText = Color(0xFFF2DFC9);
   const HeaderBar({super.key});
-
-  static const _brown = Color(0xFF6F3F17);
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +20,7 @@ class HeaderBar extends StatelessWidget {
         child: Container(
           padding: const EdgeInsetsDirectional.fromSTEB(14, 10, 14, 10),
           decoration: BoxDecoration(
-            color: _brown,
+            color: primary,
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
@@ -77,7 +77,7 @@ class HeaderBar extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.right,
                         style: const TextStyle(
-                          color: Color(0xFFFFEBD8),
+                          color: softText,
                           fontSize: 11.5,
                           height: 1.1,
                         ),
@@ -129,7 +129,7 @@ class _Avatar extends StatelessWidget {
         height: 40,
         color: Colors.white,
         alignment: Alignment.center,
-        child: const Icon(Icons.person, color: HeaderBar._brown),
+        child: const Icon(Icons.person, color: HeaderBar.primary),
       );
     }
     return Image.network(
@@ -142,7 +142,7 @@ class _Avatar extends StatelessWidget {
         height: 40,
         color: Colors.white,
         alignment: Alignment.center,
-        child: const Icon(Icons.person, color: HeaderBar._brown),
+        child: const Icon(Icons.person, color: HeaderBar.primary),
       ),
     );
   }

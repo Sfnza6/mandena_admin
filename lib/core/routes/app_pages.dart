@@ -3,6 +3,7 @@ import 'package:mandena_admin/controllers/admin_profile_controller.dart';
 import 'package:mandena_admin/controllers/branches_controller.dart';
 import 'package:mandena_admin/controllers/driver_details_controller.dart';
 import 'package:mandena_admin/controllers/drivers_controller.dart';
+import 'package:mandena_admin/controllers/delivery_tracking_controller.dart';
 import 'package:mandena_admin/controllers/profile_controller.dart';
 import 'package:mandena_admin/controllers/receiver_items_controller.dart';
 import 'package:mandena_admin/controllers/staff_controller.dart';
@@ -14,9 +15,11 @@ import 'package:mandena_admin/modules/delivery/delivery_settings_view.dart';
 import 'package:mandena_admin/modules/settings/payment_settings/payment_settings_controller.dart';
 import 'package:mandena_admin/modules/settings/payment_settings/payment_settings_page.dart';
 import 'package:mandena_admin/views/branches_view.dart';
+import 'package:mandena_admin/views/branch_map_picker_view.dart';
 import 'package:mandena_admin/views/categories_view.dart';
 import 'package:mandena_admin/views/dashboard_view.dart';
 import 'package:mandena_admin/views/driver_details_view.dart';
+import 'package:mandena_admin/views/delivery_tracking_view.dart';
 import 'package:mandena_admin/views/drivers_view.dart' show DriversView;
 import 'package:mandena_admin/views/gate/decide_gate.dart';
 import 'package:mandena_admin/views/general_info_view.dart';
@@ -27,7 +30,6 @@ import 'package:mandena_admin/views/login_view.dart';
 import 'package:mandena_admin/views/offers_view.dart';
 import 'package:mandena_admin/views/orders_view.dart';
 import 'package:mandena_admin/views/profile_view.dart';
-import 'package:mandena_admin/views/receiver/receiver_assign_page.dart';
 import 'package:mandena_admin/views/receiver/receiver_home_view.dart';
 import 'package:mandena_admin/views/receiver/receiver_items_view.dart';
 import 'package:mandena_admin/views/staff_management_view.dart';
@@ -49,21 +51,21 @@ class AppPages {
       name: Routes.dashboard,
       page: () => const DashboardView(),
       binding: BindingsBuilder(() {
-        Get.lazyPut<DashboardController>(() => DashboardController());
+        Get.put<DashboardController>(DashboardController());
       }),
     ),
     GetPage(
       name: Routes.orders,
       page: () => const OrdersView(),
       binding: BindingsBuilder(() {
-        Get.lazyPut<OrdersController>(() => OrdersController());
+        Get.put<OrdersController>(OrdersController());
       }),
     ),
     GetPage(
       name: Routes.categories,
       page: () => const CategoriesView(),
       binding: BindingsBuilder(() {
-        Get.lazyPut<CategoriesController>(() => CategoriesController());
+        Get.put<CategoriesController>(CategoriesController());
       }),
     ),
 
@@ -105,14 +107,14 @@ class AppPages {
       name: Routes.items,
       page: () => const ItemsView(),
       binding: BindingsBuilder(() {
-        Get.lazyPut<ItemsController>(() => ItemsController());
+        Get.put<ItemsController>(ItemsController());
       }),
     ),
     GetPage(
       name: Routes.offers,
       page: () => const OffersView(),
       binding: BindingsBuilder(() {
-        Get.lazyPut<OffersController>(() => OffersController());
+        Get.put<OffersController>(OffersController());
       }),
     ),
     GetPage(
@@ -136,12 +138,22 @@ class AppPages {
         Get.lazyPut<DriversController>(() => DriversController());
       }),
     ),
+    GetPage(
+      name: Routes.deliveryTracking,
+      page: () => const DeliveryTrackingView(),
+      binding: BindingsBuilder(() {
+        Get.put<DeliveryTrackingController>(DeliveryTrackingController());
+      }),
+    ),
     GetPage(name: Routes.login, page: () => const LoginView()),
     GetPage(name: Routes.decide, page: () => const DecideGate()),
     GetPage(name: Routes.receiverHome, page: () => const ReceiverHomeView()),
     GetPage(
       name: Routes.receiverassign,
-      page: () => const ReceiverAssignPage(),
+      page: () => const DeliveryTrackingView(),
+      binding: BindingsBuilder(() {
+        Get.put<DeliveryTrackingController>(DeliveryTrackingController());
+      }),
     ),
     GetPage(
       name: Routes.userDetails,
@@ -212,11 +224,16 @@ class AppPages {
         Get.lazyPut<ReceiverItemsController>(() => ReceiverItemsController());
       }),
     ),
+
+    GetPage(
+      name: Routes.branchMapPicker,
+      page: () => const BranchMapPickerView(),
+    ),
     GetPage(
       name: Routes.branches,
       page: () => const BranchesView(),
       binding: BindingsBuilder(() {
-        Get.lazyPut<BranchesController>(() => BranchesController());
+        Get.put<BranchesController>(BranchesController());
       }),
     ),
   ];

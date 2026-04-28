@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../controllers/drivers_controller.dart';
+import '../../data/models/branch_model.dart';
 import '../../data/models/driver_model.dart';
 
 class DriversView extends GetView<DriversController> {
   const DriversView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -14,33 +15,47 @@ class DriversView extends GetView<DriversController> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: brown,
+          backgroundColor: primary,
           title: const Text('السائقين'),
           centerTitle: true,
-          // ✅ شريط البحث
+
+          // ✅ شريط البحث + شريط الفروع تحت البحث
           bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(52),
+            preferredSize: Size.fromHeight(
+              controller.canFilterBranches ? 112 : 52,
+            ),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: Container(
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: TextField(
-                  controller: controller.searchCtrl,
-                  onChanged: controller.onSearchChanged,
-                  textInputAction: TextInputAction.search,
-                  decoration: const InputDecoration(
-                    hintText: 'بحث بالاسم أو رقم الهاتف أو رقم السائق',
-                    hintStyle: TextStyle(fontSize: 13),
-                    border: InputBorder.none,
-                    contentPadding:
-                        EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                    prefixIcon: Icon(Icons.search, size: 20),
+              child: Column(
+                children: [
+                  Container(
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: TextField(
+                      controller: controller.searchCtrl,
+                      onChanged: controller.onSearchChanged,
+                      textInputAction: TextInputAction.search,
+                      decoration: const InputDecoration(
+                        hintText: 'بحث بالاسم أو رقم الهاتف أو رقم السائق',
+                        hintStyle: TextStyle(fontSize: 13),
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 0,
+                        ),
+                        prefixIcon: Icon(Icons.search, size: 20),
+                      ),
+                    ),
                   ),
-                ),
+
+                  if (controller.canFilterBranches) const SizedBox(height: 8),
+
+                  if (controller.canFilterBranches)
+                    _BranchesTabs(controller: controller),
+                ],
               ),
             ),
           ),
@@ -56,9 +71,24 @@ class DriversView extends GetView<DriversController> {
             return RefreshIndicator(
               onRefresh: controller.fetchDrivers,
               child: ListView(
-                children: const [
-                  SizedBox(height: 120),
-                  Center(child: Text('لا يوجد سائقون')),
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  const SizedBox(height: 110),
+                  Icon(
+                    Icons.delivery_dining_rounded,
+                    size: 56,
+                    color: Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 12),
+                  const Center(
+                    child: Text(
+                      'لا يوجد سائقون في هذا الفرع',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             );
@@ -81,13 +111,15 @@ class DriversView extends GetView<DriversController> {
           );
         }),
 
-        // زر إضافة سائق جديد (يبقى كما هو)
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         floatingActionButton: Padding(
           padding: const EdgeInsets.only(right: 16, bottom: 16),
           child: FloatingActionButton(
-            backgroundColor: brown,
-            onPressed: () => _showAddSheet(context),
+            backgroundColor: primary,
+            onPressed: () {
+              // ignore: discarded_futures
+              _showAddSheet(context);
+            },
             child: const Icon(Icons.add, color: Colors.white),
           ),
         ),
@@ -95,14 +127,19 @@ class DriversView extends GetView<DriversController> {
     );
   }
 
-  void _showAddSheet(BuildContext context) {
+  Future<void> _showAddSheet(BuildContext context) async {
     controller.resetForm();
+    await controller.loadBranchesForForm(force: true);
+
+    if (!context.mounted) return;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) {
         final inset = MediaQuery.of(context).viewInsets.bottom;
+
         return Directionality(
           textDirection: TextDirection.rtl,
           child: Padding(
@@ -125,7 +162,125 @@ class DriversView extends GetView<DriversController> {
   }
 }
 
-/* -------- كرت السائق (بنفس تصميم المستخدم تقريباً) -------- */
+/* -------- شريط الفروع تحت البحث -------- */
+
+class _BranchesTabs extends StatelessWidget {
+  const _BranchesTabs({required this.controller});
+
+  final DriversController controller;
+
+  static const primary = Color(0xFFB85A1B);
+  static const darkPrimary = Color.fromARGB(255, 145, 58, 0);
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      if (controller.formBranchesLoading.value &&
+          controller.formBranches.isEmpty) {
+        return SizedBox(
+          height: 42,
+          child: Center(
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Padding(
+                padding: EdgeInsets.all(8),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      final selected = controller.branchFilterValue;
+      final branches = controller.formBranches;
+
+      return SizedBox(
+        height: 42,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          itemCount: branches.length + 1,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (_, index) {
+            final bool isAll = index == 0;
+
+            final int branchId = isAll ? 0 : branches[index - 1].id;
+
+            final String title = isAll
+                ? 'كل الفروع'
+                : branches[index - 1].name.trim().isNotEmpty
+                ? branches[index - 1].name
+                : 'فرع #$branchId';
+
+            final bool active = selected == branchId;
+
+            return InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => controller.setBranchFilter(branchId),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: active ? Colors.white : darkPrimary,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: active
+                        ? Colors.white
+                        : Colors.white.withOpacity(.18),
+                  ),
+                  boxShadow: active
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isAll
+                          ? Icons.dashboard_rounded
+                          : Icons.storefront_rounded,
+                      size: 17,
+                      color: active ? primary : Colors.white,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      title,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: active ? primary : Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    });
+  }
+}
+
+/* -------- كرت السائق -------- */
 
 class _DriverTile extends StatelessWidget {
   const _DriverTile(this.d, {this.onDelete});
@@ -133,7 +288,7 @@ class _DriverTile extends StatelessWidget {
   final DriverModel d;
   final VoidCallback? onDelete;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   void _showOptions(BuildContext context) {
     showModalBottomSheet(
@@ -163,7 +318,7 @@ class _DriverTile extends StatelessWidget {
                 ListTile(
                   leading: const Icon(
                     Icons.assignment_turned_in_outlined,
-                    color: brown,
+                    color: primary,
                   ),
                   title: const Text(
                     'الطلبات المكلّف بها حاليًا',
@@ -180,8 +335,7 @@ class _DriverTile extends StatelessWidget {
                 ),
                 const Divider(height: 0),
                 ListTile(
-                  leading:
-                      const Icon(Icons.analytics_outlined, color: brown),
+                  leading: const Icon(Icons.analytics_outlined, color: primary),
                   title: const Text(
                     'اللوحة المالية للسائق',
                     style: TextStyle(fontWeight: FontWeight.w700),
@@ -198,8 +352,10 @@ class _DriverTile extends StatelessWidget {
                 if (onDelete != null) ...[
                   const Divider(height: 0),
                   ListTile(
-                    leading:
-                        const Icon(Icons.delete_outline, color: Colors.red),
+                    leading: const Icon(
+                      Icons.delete_outline,
+                      color: Colors.red,
+                    ),
                     title: const Text(
                       'حذف السائق',
                       style: TextStyle(
@@ -231,11 +387,10 @@ class _DriverTile extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () => _showOptions(context),
-      // حذف عن طريق الضغط المطوّل (مع الحفاظ على التصميم النظيف)
       onLongPress: onDelete,
       child: Container(
         decoration: BoxDecoration(
-          color: brown,
+          color: primary,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(color: Colors.black.withOpacity(.08), blurRadius: 8),
@@ -253,7 +408,7 @@ class _DriverTile extends StatelessWidget {
             child: Text(
               initial,
               style: const TextStyle(
-                color: brown,
+                color: primary,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -267,11 +422,24 @@ class _DriverTile extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
-          subtitle: Text(
-            d.phone,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.white70),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                d.phone,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white70),
+              ),
+              if (d.branchName != null && d.branchName!.isNotEmpty)
+                Text(
+                  'الفرع: ${d.branchName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white60, fontSize: 12),
+                ),
+            ],
           ),
         ),
       ),
@@ -279,17 +447,18 @@ class _DriverTile extends StatelessWidget {
   }
 }
 
-/* -------- BottomSheet (إضافة سائق) -------- */
+/* -------- BottomSheet إضافة سائق -------- */
 
 class _AddDriverSheet extends StatelessWidget {
   const _AddDriverSheet({required this.onSubmit});
   final VoidCallback onSubmit;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
     final c = Get.find<DriversController>();
+
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -309,7 +478,7 @@ class _AddDriverSheet extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: brown,
+              color: primary,
               borderRadius: BorderRadius.circular(16),
             ),
             alignment: Alignment.center,
@@ -333,12 +502,62 @@ class _AddDriverSheet extends StatelessWidget {
                   _field(c.phoneCtrl, 'الهاتف', keyboard: TextInputType.phone),
                   const SizedBox(height: 12),
                   _field(c.passCtrl, 'الرقم السري', obscure: true),
+                  const SizedBox(height: 12),
+                  Obx(() {
+                    if (c.formBranchesLoading.value && c.formBranches.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(
+                          child: SizedBox(
+                            height: 28,
+                            width: 28,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      );
+                    }
+
+                    if (c.formBranches.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          'لا توجد فروع نشطة. أضف فرعاً من شاشة الفروع ثم أعد المحاولة.',
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontSize: 13,
+                            height: 1.35,
+                          ),
+                        ),
+                      );
+                    }
+
+                    return DropdownButtonFormField<int>(
+                      initialValue: c.selectedBranchId.value,
+                      decoration: _branchDropdownDecor(),
+                      hint: const Text('اختر الفرع'),
+                      isExpanded: true,
+                      items: c.formBranches
+                          .map(
+                            (BranchModel b) => DropdownMenuItem<int>(
+                              value: b.id,
+                              child: Text(
+                                b.name.trim().isNotEmpty
+                                    ? b.name
+                                    : 'فرع #${b.id}',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => c.selectedBranchId.value = v,
+                    );
+                  }),
                   const SizedBox(height: 18),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: brown,
+                        backgroundColor: primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -375,16 +594,25 @@ class _AddDriverSheet extends StatelessWidget {
   }
 
   InputDecoration _decor(String hint) => InputDecoration(
-        hintText: hint,
-        filled: true,
-        fillColor: const Color(0xFFF2EFEA),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(
-          borderSide: BorderSide.none,
-          borderRadius: BorderRadius.circular(14),
-        ),
-      );
+    hintText: hint,
+    filled: true,
+    fillColor: const Color(0xFFF2EFEA),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    border: OutlineInputBorder(
+      borderSide: BorderSide.none,
+      borderRadius: BorderRadius.circular(14),
+    ),
+  );
+
+  InputDecoration _branchDropdownDecor() => InputDecoration(
+    filled: true,
+    fillColor: const Color(0xFFF2EFEA),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+    border: OutlineInputBorder(
+      borderSide: BorderSide.none,
+      borderRadius: BorderRadius.circular(14),
+    ),
+  );
 
   Widget _field(
     TextEditingController c,
@@ -419,7 +647,6 @@ class _DriverAssignedOrdersViewState extends State<DriverAssignedOrdersView> {
   void initState() {
     super.initState();
     c = Get.find<DriversController>();
-    // جلب الطلبات المكلّف بها لهذا السائق
     c.fetchAssignedOrders(driverId: widget.driver.id, force: true);
   }
 
@@ -429,7 +656,7 @@ class _DriverAssignedOrdersViewState extends State<DriverAssignedOrdersView> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: DriversView.brown,
+          backgroundColor: DriversView.primary,
           title: Text('طلبات السائق: ${widget.driver.name}'),
           centerTitle: true,
         ),
@@ -441,8 +668,11 @@ class _DriverAssignedOrdersViewState extends State<DriverAssignedOrdersView> {
           if (c.assignedOrders.isEmpty) {
             return RefreshIndicator(
               onRefresh: () => c.fetchAssignedOrders(
-                  driverId: widget.driver.id, force: true),
+                driverId: widget.driver.id,
+                force: true,
+              ),
               child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 children: const [
                   SizedBox(height: 120),
                   Center(child: Text('لا توجد طلبات مكلّف بها لهذا السائق')),
@@ -452,14 +682,13 @@ class _DriverAssignedOrdersViewState extends State<DriverAssignedOrdersView> {
           }
 
           return RefreshIndicator(
-            onRefresh: () => c.fetchAssignedOrders(
-                driverId: widget.driver.id, force: true),
+            onRefresh: () =>
+                c.fetchAssignedOrders(driverId: widget.driver.id, force: true),
             child: ListView.builder(
               padding: const EdgeInsets.all(12),
               itemCount: c.assignedOrders.length,
               itemBuilder: (_, i) {
                 final o = c.assignedOrders[i];
-                // نفترض أن OrderModel يحتوي على id و total على الأقل
                 final title = 'طلب #${o.id}';
                 final subtitle = 'الإجمالي: ${o.total}';
 
@@ -504,6 +733,7 @@ class _DriverFinanceViewState extends State<DriverFinanceView> {
 
   Widget _rangeChips() {
     final items = ['all', 'month', 'week', 'today'];
+
     String labelOf(String r) {
       if (r == 'all') return 'كل الوقت';
       if (r == 'month') return 'هذا الشهر';
@@ -525,6 +755,7 @@ class _DriverFinanceViewState extends State<DriverFinanceView> {
           child: Row(
             children: items.map((r) {
               final selected = c.driverFinanceRange.value == r;
+
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 3),
                 child: ChoiceChip(
@@ -532,26 +763,28 @@ class _DriverFinanceViewState extends State<DriverFinanceView> {
                   selected: selected,
                   onSelected: (_) =>
                       c.loadDriverFinance(widget.driver.id, range: r),
-                  labelPadding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                  labelPadding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 0,
+                  ),
                   backgroundColor: Colors.transparent,
-                  selectedColor: DriversView.brown.withOpacity(.14),
+                  selectedColor: DriversView.primary.withOpacity(.14),
                   labelStyle: TextStyle(
                     color: selected ? Colors.black87 : Colors.grey.shade700,
-                    fontWeight:
-                        selected ? FontWeight.w700 : FontWeight.w500,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   ),
                   shape: StadiumBorder(
                     side: BorderSide(
                       color: selected
-                          ? DriversView.brown
+                          ? DriversView.primary
                           : Colors.grey.shade300,
                     ),
                   ),
-                  materialTapTargetSize:
-                      MaterialTapTargetSize.shrinkWrap,
-                  visualDensity:
-                      const VisualDensity(horizontal: -2, vertical: -2),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: const VisualDensity(
+                    horizontal: -2,
+                    vertical: -2,
+                  ),
                 ),
               );
             }).toList(),
@@ -569,10 +802,10 @@ class _DriverFinanceViewState extends State<DriverFinanceView> {
       final delivered = s['delivered'] ?? 0;
       final rejected = s['rejected'] ?? 0;
       final profitAll = (s['profit_all'] ?? 0).toString();
-      final duesToday =
-          (s['dues_today'] ?? today['dues_today'] ?? 0).toString();
-      final debtToday =
-          (s['debt_today'] ?? today['debt_today'] ?? 0).toString();
+      final duesToday = (s['dues_today'] ?? today['dues_today'] ?? 0)
+          .toString();
+      final debtToday = (s['debt_today'] ?? today['debt_today'] ?? 0)
+          .toString();
 
       return Card(
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -584,10 +817,7 @@ class _DriverFinanceViewState extends State<DriverFinanceView> {
             children: [
               const Text(
                 'ملخّص الأداء',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 16,
-                ),
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
               ),
               const SizedBox(height: 8),
               Wrap(
@@ -615,17 +845,11 @@ class _DriverFinanceViewState extends State<DriverFinanceView> {
         children: [
           Text(
             value,
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 14,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
           ),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.black54,
-            ),
+            style: const TextStyle(fontSize: 11, color: Colors.black54),
           ),
         ],
       ),
@@ -640,11 +864,13 @@ class _DriverFinanceViewState extends State<DriverFinanceView> {
   }) {
     return Obx(() {
       final list = source;
+
       if (list.isEmpty) {
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Text(
@@ -673,11 +899,9 @@ class _DriverFinanceViewState extends State<DriverFinanceView> {
               const SizedBox(height: 6),
               ...list.map((row) {
                 final date = '${row['closing_date'] ?? ''}';
-                final cnt =
-                    row['deliveries_count'] ?? row['orders_count'] ?? 0;
-                final amount = row['delivery_earnings_total'] ??
-                    row['orders_total'] ??
-                    0;
+                final cnt = row['deliveries_count'] ?? row['orders_count'] ?? 0;
+                final amount =
+                    row['delivery_earnings_total'] ?? row['orders_total'] ?? 0;
                 final orders = (row['orders'] ?? []) as List;
 
                 return Card(
@@ -687,13 +911,10 @@ class _DriverFinanceViewState extends State<DriverFinanceView> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: ExpansionTile(
-                    tilePadding:
-                        const EdgeInsets.symmetric(horizontal: 10),
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 10),
                     title: Text(
                       '$date — $amount',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     subtitle: Text(
                       'عدد الطلبات: $cnt',
@@ -719,10 +940,12 @@ class _DriverFinanceViewState extends State<DriverFinanceView> {
                             final total = o['total'] ?? 0;
                             final fee = o['delivery_fee'] ?? 0;
                             final due = o['restaurant_due'] ?? 0;
+
                             return ListTile(
                               dense: true,
-                              contentPadding:
-                                  const EdgeInsets.symmetric(horizontal: 8),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                               title: Text(
                                 '#$id — $username ($phone)',
                                 style: const TextStyle(
@@ -755,12 +978,13 @@ class _DriverFinanceViewState extends State<DriverFinanceView> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: DriversView.brown,
+          backgroundColor: DriversView.primary,
           title: Text('اللوحة المالية: ${widget.driver.name}'),
           centerTitle: true,
         ),
         body: Obx(() {
           final loading = c.driverFinanceLoading.value;
+
           return Stack(
             children: [
               ListView(
@@ -783,9 +1007,7 @@ class _DriverFinanceViewState extends State<DriverFinanceView> {
               if (loading)
                 const Positioned.fill(
                   child: IgnorePointer(
-                    child: Center(
-                      child: CircularProgressIndicator(),
-                    ),
+                    child: Center(child: CircularProgressIndicator()),
                   ),
                 ),
             ],

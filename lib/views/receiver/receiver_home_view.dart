@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../controllers/items_controller.dart';
 import '../../controllers/AuthController.dart';
+import '../../controllers/admin_branch_scope_controller.dart';
 import '../../core/routes/app_routes.dart';
 
 class ReceiverHomeView extends StatefulWidget {
@@ -20,8 +21,8 @@ class ReceiverHomeView extends StatefulWidget {
 }
 
 class _ReceiverHomeViewState extends State<ReceiverHomeView> {
-  static const brown = Color(0xFF6F3F17);
-  static const pageBg = Color(0xFFF3F0ED);
+  static const primary = Color(0xFFB85A1B);
+  static const pageBg = Color(0xFFF7F7F9);
 
   static const _tabCacheKey = 'receiver_home_tab_index';
 
@@ -32,6 +33,35 @@ class _ReceiverHomeViewState extends State<ReceiverHomeView> {
     ReceiverItemsView(),
     ReceiverAssignPage(),
   ];
+
+  String _currentTabCacheKey() {
+    try {
+      final auth = Get.find<AuthController>();
+      final userId = auth.admin.value?.id ?? 0;
+      final branchId = auth.currentBranchId ?? 0;
+      return '${_tabCacheKey}_user_${userId}_branch_$branchId';
+    } catch (_) {
+      return _tabCacheKey;
+    }
+  }
+
+  String _branchLabel(AuthController auth, AdminBranchScopeController? scope) {
+    final fromAuth = auth.currentBranchName.trim();
+    final fromScope = (scope?.currentBranchLabel ?? '').trim();
+
+    if (fromScope.isNotEmpty &&
+        fromScope != 'اختر الفرع' &&
+        !fromScope.startsWith('الفرع #')) {
+      return fromScope;
+    }
+
+    if (fromAuth.isNotEmpty) return fromAuth;
+
+    final id = auth.currentBranchId;
+    if (id != null && id > 0) return 'الفرع #$id';
+
+    return 'لم يتم تحديد الفرع';
+  }
 
   @override
   void initState() {
@@ -51,7 +81,7 @@ class _ReceiverHomeViewState extends State<ReceiverHomeView> {
   Future<void> _restoreLastTab() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final saved = prefs.getInt(_tabCacheKey);
+      final saved = prefs.getInt(_currentTabCacheKey());
       if (saved != null && saved >= 0 && saved < _pages.length && mounted) {
         setState(() => _index = saved);
       }
@@ -63,7 +93,7 @@ class _ReceiverHomeViewState extends State<ReceiverHomeView> {
   Future<void> _saveTab(int i) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt(_tabCacheKey, i);
+      await prefs.setInt(_currentTabCacheKey(), i);
     } catch (_) {
       // تجاهل أخطاء التخزين
     }
@@ -78,23 +108,72 @@ class _ReceiverHomeViewState extends State<ReceiverHomeView> {
   @override
   Widget build(BuildContext context) {
     final auth = Get.find<AuthController>();
+    final branchScope = Get.isRegistered<AdminBranchScopeController>()
+        ? Get.find<AdminBranchScopeController>()
+        : null;
 
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         backgroundColor: pageBg,
         appBar: AppBar(
-          backgroundColor: brown,
+          backgroundColor: primary,
           centerTitle: true,
           elevation: 0,
-          title: const Text(
-            'مستقبل الطلبات',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
-            ),
-          ),
+          toolbarHeight: 68,
+          title: Obx(() {
+            final branchName = _branchLabel(auth, branchScope);
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'مستقبل الطلبات',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.16),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.white.withOpacity(.18)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.storefront_rounded,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                      const SizedBox(width: 5),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 180),
+                        child: Text(
+                          branchName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }),
           iconTheme: const IconThemeData(color: Colors.white),
           actions: [
             IconButton(
@@ -125,9 +204,9 @@ class _BottomNav extends StatelessWidget {
   final int current;
   final ValueChanged<int> onChanged;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
   static const bg = Colors.white;
-  static const indicator = Color(0xFFF3F0ED);
+  static const indicator = Color(0xFFF7F7F9);
 
   @override
   Widget build(BuildContext context) {
@@ -155,14 +234,14 @@ class _BottomNav extends StatelessWidget {
               return TextStyle(
                 fontSize: 12,
                 fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? brown : Colors.black54,
+                color: selected ? primary : Colors.black54,
               );
             }),
             iconTheme: WidgetStateProperty.resolveWith<IconThemeData>((states) {
               final selected = states.contains(WidgetState.selected);
               return IconThemeData(
                 size: 22,
-                color: selected ? brown : Colors.black54,
+                color: selected ? primary : Colors.black54,
               );
             }),
           ),
@@ -182,9 +261,9 @@ class _BottomNav extends StatelessWidget {
                 label: 'الأصناف',
               ),
               NavigationDestination(
-                icon: Icon(Icons.local_shipping_outlined),
-                selectedIcon: Icon(Icons.local_shipping),
-                label: 'تكليف',
+                icon: Icon(Icons.route_outlined),
+                selectedIcon: Icon(Icons.route),
+                label: 'تتبع',
               ),
             ],
           ),

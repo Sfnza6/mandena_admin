@@ -1,31 +1,28 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:mandena_admin/data/models/dashboard_stats.dart';
 import '../core/services/api_service.dart';
 import '../core/config/env.dart';
+import 'admin_branch_scope_controller.dart';
 
 class DashboardController extends GetxController {
   final _api = ApiService();
+  final _branchScope = Get.find<AdminBranchScopeController>();
+  Worker? _branchWorker;
 
   // =================== 🔹 Cache ثابت للداشبورد (RAM) 🔹 ===================
 
-  // كاش للإحصائيات العامة
-  static DashboardStats? _cacheStats;
-  static DateTime? _cacheStatsTime;
+  static final Map<int, DashboardStats> _cacheStatsByBranch = {};
+  static final Map<int, DateTime> _cacheStatsTimeByBranch = {};
   static const Duration _statsCacheDuration = Duration(seconds: 60);
 
-  // كاش للأكثر طلباً حسب الفترة (key = period: day/week/month/all)
   static final Map<String, List<(int, String, String, String, String)>>
   _cacheMostOrdered = {};
   static final Map<String, DateTime> _cacheMostOrderedTime = {};
   static const Duration _mostCacheDuration = Duration(seconds: 60);
-
-  // كاش للتقييمات
-  static List<(String, String, String)>? _cacheReviews;
-  static DateTime? _cacheReviewsTime;
-  static const Duration _reviewsCacheDuration = Duration(seconds: 60);
 
   // =================== 🔹 Cache دائم (GetStorage) 🔹 ===================
 
@@ -34,10 +31,36 @@ class DashboardController extends GetxController {
   static const String _kStatsTimeKey = 'dashboard_stats_time';
   static const String _kMostKey = 'dashboard_most_ordered';
   static const String _kMostTimeKey = 'dashboard_most_ordered_time';
-  static const String _kReviewsKey = 'dashboard_reviews';
-  static const String _kReviewsTimeKey = 'dashboard_reviews_time';
 
   final GetStorage _box = GetStorage(_boxName);
+
+  int get _branchCacheId => _branchScope.effectiveBranchId ?? 0;
+
+  int? get _branchId {
+    final id = _branchScope.effectiveBranchId;
+    if (id != null && id > 0) return id;
+    return null;
+  }
+
+  DashboardStats? get _cacheStats => _cacheStatsByBranch[_branchCacheId];
+  set _cacheStats(DashboardStats? v) {
+    if (v == null) {
+      _cacheStatsByBranch.remove(_branchCacheId);
+    } else {
+      _cacheStatsByBranch[_branchCacheId] = v;
+    }
+  }
+
+  DateTime? get _cacheStatsTime => _cacheStatsTimeByBranch[_branchCacheId];
+  set _cacheStatsTime(DateTime? v) {
+    if (v == null) {
+      _cacheStatsTimeByBranch.remove(_branchCacheId);
+    } else {
+      _cacheStatsTimeByBranch[_branchCacheId] = v;
+    }
+  }
+
+  String get _mostCacheKey => '${_branchCacheId}:${_periodParam(period.value)}';
 
   // =================== =================== ===================
 
@@ -51,29 +74,49 @@ class DashboardController extends GetxController {
   RxList<(int, String, String, String, String)> mostOrdered =
       <(int, String, String, String, String)>[].obs;
 
-  RxList<(String, String, String)> reviews = <(String, String, String)>[].obs;
-
   Timer? _autoRefreshTimer;
+  int? _lastBranchId;
 
   @override
   void onInit() {
     super.onInit();
 
-    // 1️⃣ حمّل من الكاش الدائم في البداية (عرض فوري لو فيه بيانات محفوظة)
     _loadFromPersistentCache();
 
-    // 2️⃣ ثمّ حدّث من الخادم + كاش RAM
-    refreshAll();
+    final current = _branchId;
+    if (current != null && current > 0) {
+      _lastBranchId = current;
+      Future.microtask(refreshAll);
+    }
 
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      refreshAll();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 90), (_) {
+      if (_branchId != null && _branchId! > 0) {
+        refreshAll();
+      }
     });
-    ever<int>(period, (_) => fetchMostOrdered());
+
+    ever<int>(period, (_) {
+      if (_branchId != null && _branchId! > 0) {
+        fetchMostOrdered();
+      }
+    });
+
+    _branchWorker = ever<int?>(_branchScope.selectedBranchId, (branchId) async {
+      if (branchId == null || branchId <= 0) return;
+      if (_lastBranchId == branchId) return;
+
+      _lastBranchId = branchId;
+      stats.value = null;
+      mostOrdered.clear();
+
+      await refreshAll();
+    });
   }
 
   @override
   void onClose() {
     _autoRefreshTimer?.cancel();
+    _branchWorker?.dispose();
     super.onClose();
   }
 
@@ -81,7 +124,6 @@ class DashboardController extends GetxController {
 
   void _loadFromPersistentCache() {
     try {
-      // ----- الإحصائيات -----
       final statsJson = _box.read(_kStatsKey);
       final statsTimeRaw = _box.read(_kStatsTimeKey);
 
@@ -108,7 +150,6 @@ class DashboardController extends GetxController {
         }
       }
 
-      // ----- الأكثر طلباً -----
       final mostJson = _box.read(_kMostKey);
       final mostTimeJson = _box.read(_kMostTimeKey);
 
@@ -157,62 +198,12 @@ class DashboardController extends GetxController {
           }
         });
 
-        // لو الفترة الحالية لها كاش، عرّضها فوراً
-        final per = _periodParam(period.value);
-        final cachedList = _cacheMostOrdered[per];
+        final cachedList = _cacheMostOrdered[_mostCacheKey];
         if (cachedList != null) {
           mostOrdered.assignAll(cachedList);
         }
       }
-
-      // ----- التقييمات -----
-      final reviewsJson = _box.read(_kReviewsKey);
-      final reviewsTimeRaw = _box.read(_kReviewsTimeKey);
-
-      if (reviewsJson != null && reviewsTimeRaw != null) {
-        List<(String, String, String)> list = [];
-
-        if (reviewsJson is List) {
-          for (final e in reviewsJson) {
-            if (e is Map) {
-              final m = Map<String, dynamic>.from(e);
-              list.add((
-                (m['name'] ?? '').toString(),
-                (m['time'] ?? '').toString(),
-                (m['text'] ?? '').toString(),
-              ));
-            }
-          }
-        } else if (reviewsJson is String) {
-          final arr = jsonDecode(reviewsJson) as List;
-          for (final e in arr) {
-            if (e is Map) {
-              final m = Map<String, dynamic>.from(e);
-              list.add((
-                (m['name'] ?? '').toString(),
-                (m['time'] ?? '').toString(),
-                (m['text'] ?? '').toString(),
-              ));
-            }
-          }
-        }
-
-        DateTime? t;
-        if (reviewsTimeRaw is int) {
-          t = DateTime.fromMillisecondsSinceEpoch(reviewsTimeRaw);
-        } else if (reviewsTimeRaw is String) {
-          t = DateTime.tryParse(reviewsTimeRaw);
-        }
-
-        if (list.isNotEmpty) {
-          reviews.assignAll(list);
-          _cacheReviews = List<(String, String, String)>.from(list);
-          _cacheReviewsTime = t;
-        }
-      }
-    } catch (_) {
-      // لو صار أي خطأ في الكاش، نتجاهله بهدوء
-    }
+    } catch (_) {}
   }
 
   /* =================== 🔹 حفظ الكاش في GetStorage 🔹 =================== */
@@ -220,7 +211,6 @@ class DashboardController extends GetxController {
   void _saveStatsToStorage() {
     try {
       if (_cacheStats == null || _cacheStatsTime == null) return;
-      // نفترض DashboardStats عنده toJson()
       final jsonStats = _cacheStats!.toJson();
       _box.write(_kStatsKey, jsonStats);
       _box.write(_kStatsTimeKey, _cacheStatsTime!.millisecondsSinceEpoch);
@@ -255,25 +245,24 @@ class DashboardController extends GetxController {
     } catch (_) {}
   }
 
-  void _saveReviewsToStorage() {
-    try {
-      if (_cacheReviews == null || _cacheReviewsTime == null) return;
-      final list = _cacheReviews!
-          .map((t) => {'name': t.$1, 'time': t.$2, 'text': t.$3})
-          .toList();
-      _box.write(_kReviewsKey, list);
-      _box.write(_kReviewsTimeKey, _cacheReviewsTime!.millisecondsSinceEpoch);
-    } catch (_) {}
-  }
-
   /* =================== =================== =================== */
 
   Future<void> refreshAll() async {
-    await Future.wait([fetchStats(), fetchMostOrdered(), fetchReviews()]);
+    final branchId = _branchId;
+    if (branchId == null || branchId <= 0) {
+      return;
+    }
+
+    await Future.wait([fetchStats(), fetchMostOrdered()]);
   }
 
   Future<void> fetchStats() async {
-    // 🔹 جرّب الكاش أولاً لو ما عندناش بيانات في الـ stats
+    final branchId = _branchId;
+    if (branchId == null || branchId <= 0) {
+      debugPrint('fetchStats skipped: branch_id is null');
+      return;
+    }
+
     try {
       final now = DateTime.now();
       if (stats.value == null &&
@@ -287,15 +276,18 @@ class DashboardController extends GetxController {
 
     try {
       loadingStats(true);
-      final data = await _api.get(Env.stats);
+
+      final data = await _api.get(Env.stats, query: {'branch_id': '$branchId'});
+
       stats.value = DashboardStats.fromJson(
         data is Map ? Map<String, dynamic>.from(data) : {},
       );
 
-      // 🔹 حدّث الكاش بعد النجاح
       _cacheStats = stats.value;
       _cacheStatsTime = DateTime.now();
       _saveStatsToStorage();
+    } catch (e) {
+      debugPrint('fetchStats error: $e');
     } finally {
       loadingStats(false);
     }
@@ -315,32 +307,32 @@ class DashboardController extends GetxController {
     }
   }
 
-  /// ✅ يقرأ most_ordered.php مع دعم period
   Future<void> fetchMostOrdered() async {
+    final branchId = _branchId;
+    if (branchId == null || branchId <= 0) {
+      debugPrint('fetchMostOrdered skipped: branch_id is null');
+      return;
+    }
+
+    try {
+      final now = DateTime.now();
+      final cached = _cacheMostOrdered[_mostCacheKey];
+      final t = _cacheMostOrderedTime[_mostCacheKey];
+      if (mostOrdered.isEmpty &&
+          cached != null &&
+          t != null &&
+          now.difference(t) <= _mostCacheDuration) {
+        mostOrdered.assignAll(cached);
+        return;
+      }
+    } catch (_) {}
+
     try {
       final per = _periodParam(period.value);
 
-      // 🔹 جرّب الكاش أولاً لو القائمة فاضية
-      try {
-        final now = DateTime.now();
-        final cached = _cacheMostOrdered[per];
-        final t = _cacheMostOrderedTime[per];
-        if (mostOrdered.isEmpty &&
-            cached != null &&
-            t != null &&
-            now.difference(t) <= _mostCacheDuration) {
-          mostOrdered.assignAll(cached);
-          return;
-        }
-      } catch (_) {}
-
       final data = await _api.get(
         Env.mostOrdered,
-        query: {
-          'limit': '10',
-          'period': per,
-          // 'include_inactive': '1', // إذا حابب تُظهر غير المفعّل
-        },
+        query: {'limit': '10', 'period': per, 'branch_id': '$branchId'},
       );
 
       final list = (data is List)
@@ -354,7 +346,6 @@ class DashboardController extends GetxController {
         final rank = i + 1;
         final name = (m['name'] ?? '').toString();
 
-        // نأخذ العدد ضمن الفترة أولاً، وإلا التراكمي كبديل
         final countNum = (m['order_count_period'] is num)
             ? (m['order_count_period'] as num).toInt()
             : (int.tryParse(
@@ -363,7 +354,6 @@ class DashboardController extends GetxController {
                   0);
         final countStr = '$countNum';
 
-        // التاريخ: آخر طلب ضمن الفترة وإلا updated/created
         final date =
             (m['last_order_at'] ??
                     m['updated_at'] ??
@@ -373,7 +363,6 @@ class DashboardController extends GetxController {
                     '')
                 .toString();
 
-        // الصورة
         final image = (m['image_url'] ?? m['image'] ?? '').toString();
 
         out.add((rank, name, countStr, date, image));
@@ -381,48 +370,12 @@ class DashboardController extends GetxController {
 
       mostOrdered.assignAll(out);
 
-      // 🔹 حدّث كاش الـ most ordered لهذه الفترة
-      _cacheMostOrdered[per] = List<(int, String, String, String, String)>.from(
-        out,
-      );
-      _cacheMostOrderedTime[per] = DateTime.now();
+      _cacheMostOrdered[_mostCacheKey] =
+          List<(int, String, String, String, String)>.from(out);
+      _cacheMostOrderedTime[_mostCacheKey] = DateTime.now();
       _saveMostOrderedToStorage();
-    } catch (_) {
-      // تجاهل الخطأ حتى لا تتعطّل الواجهة
+    } catch (e) {
+      debugPrint('fetchMostOrdered error: $e');
     }
-  }
-
-  Future<void> fetchReviews() async {
-    // 🔹 جرّب الكاش لو القائمة فاضية
-    try {
-      final now = DateTime.now();
-      if (reviews.isEmpty &&
-          _cacheReviews != null &&
-          _cacheReviewsTime != null &&
-          now.difference(_cacheReviewsTime!) <= _reviewsCacheDuration) {
-        reviews.assignAll(_cacheReviews!);
-        return;
-      }
-    } catch (_) {}
-
-    try {
-      final data = await _api.get(Env.reviews);
-      final list = (data as List)
-          .map(
-            (e) => (
-              (e['name'] ?? '').toString(),
-              (e['time'] ?? '').toString(),
-              (e['text'] ?? '').toString(),
-            ),
-          )
-          .toList();
-
-      reviews.assignAll(list);
-
-      // 🔹 حدّث كاش التقييمات
-      _cacheReviews = List<(String, String, String)>.from(list);
-      _cacheReviewsTime = DateTime.now();
-      _saveReviewsToStorage();
-    } catch (_) {}
   }
 }

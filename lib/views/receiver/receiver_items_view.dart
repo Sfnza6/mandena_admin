@@ -6,8 +6,8 @@ import '../../data/models/item_model.dart';
 class ReceiverItemsView extends GetView<ReceiverItemsController> {
   const ReceiverItemsView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
-  static const pageBg = Color(0xFFF3F0ED);
+  static const primary = Color(0xFFB85A1B);
+  static const pageBg = Color(0xFFF7F7F9);
 
   /// حالة تنفيذ زر (تشغيل/إيقاف جميع الأصناف)
   static final RxBool _bulkBusy = false.obs;
@@ -26,7 +26,7 @@ class ReceiverItemsView extends GetView<ReceiverItemsController> {
       child: Scaffold(
         backgroundColor: pageBg,
         appBar: AppBar(
-          backgroundColor: brown,
+          backgroundColor: primary,
           title: const Text('أصناف اليوم'),
           centerTitle: true,
         ),
@@ -88,7 +88,7 @@ class ReceiverItemsView extends GetView<ReceiverItemsController> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: hasAnyActive
                                     ? Colors.red.shade600
-                                    : brown,
+                                    : primary,
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 10,
@@ -241,7 +241,7 @@ class _SectionHeader extends StatelessWidget {
   final bool busy;
   final VoidCallback onToggleSection;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -253,13 +253,13 @@ class _SectionHeader extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: brown.withOpacity(0.08),
+                color: primary.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: brown.withOpacity(0.2)),
+                border: Border.all(color: primary.withOpacity(0.2)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.category_outlined, color: brown, size: 20),
+                  Icon(Icons.category_outlined, color: primary, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -287,7 +287,7 @@ class _SectionHeader extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Material(
-            color: hasAnyActive ? Colors.red.shade50 : brown.withOpacity(0.12),
+            color: hasAnyActive ? Colors.red.shade50 : primary.withOpacity(0.12),
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: busy ? null : onToggleSection,
@@ -303,7 +303,7 @@ class _SectionHeader extends StatelessWidget {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: brown,
+                          color: primary,
                         ),
                       )
                     : Row(
@@ -314,7 +314,7 @@ class _SectionHeader extends StatelessWidget {
                                 ? Icons.visibility_off_rounded
                                 : Icons.visibility_rounded,
                             size: 18,
-                            color: hasAnyActive ? Colors.red.shade700 : brown,
+                            color: hasAnyActive ? Colors.red.shade700 : primary,
                           ),
                           const SizedBox(width: 6),
                           Text(
@@ -322,7 +322,7 @@ class _SectionHeader extends StatelessWidget {
                             style: TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 12,
-                              color: hasAnyActive ? Colors.red.shade700 : brown,
+                              color: hasAnyActive ? Colors.red.shade700 : primary,
                             ),
                           ),
                         ],
@@ -348,7 +348,7 @@ class _ItemCard extends StatelessWidget {
   final ValueChanged<bool> onToggle;
   final VoidCallback onEditQuota;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -382,7 +382,7 @@ class _ItemCard extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: brown,
+                    color: primary,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -402,7 +402,7 @@ class _ItemCard extends StatelessWidget {
                 child: Switch.adaptive(
                   value: it.isActive,
                   onChanged: onToggle,
-                  activeColor: brown,
+                  activeColor: primary,
                 ),
               ),
             ],
@@ -460,7 +460,7 @@ class _ItemCard extends StatelessWidget {
                   const Icon(
                     Icons.edit_calendar_outlined,
                     size: 18,
-                    color: brown,
+                    color: primary,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -472,7 +472,7 @@ class _ItemCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: brown,
+                        color: primary,
                         fontWeight: FontWeight.w700,
                         fontSize: 11.5,
                       ),

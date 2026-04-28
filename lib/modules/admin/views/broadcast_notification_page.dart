@@ -3,14 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 
-const _brown = Color(0xFF6F3F17);
+const _primary = Color(0xFFB85A1B);
 const String _broadcastUrl = 'https://evoranta.ly/notify/broadcast.php';
 
 class BroadcastNotificationPage extends StatefulWidget {
   const BroadcastNotificationPage({super.key});
 
   @override
-  State<BroadcastNotificationPage> createState() => _BroadcastNotificationPageState();
+  State<BroadcastNotificationPage> createState() =>
+      _BroadcastNotificationPageState();
 }
 
 class _BroadcastNotificationPageState extends State<BroadcastNotificationPage> {
@@ -57,9 +58,11 @@ class _BroadcastNotificationPageState extends State<BroadcastNotificationPage> {
         j = jsonDecode(res.body) as Map<String, dynamic>;
       } catch (_) {}
 
-      final ok = (res.statusCode >= 200 && res.statusCode < 300) &&
+      final ok =
+          (res.statusCode >= 200 && res.statusCode < 300) &&
           ((j?['ok'] == true) ||
-              ((j?['success_total'] is num) && (j?['success_total'] as num).toInt() > 0) ||
+              ((j?['success_total'] is num) &&
+                  (j?['success_total'] as num).toInt() > 0) ||
               ((j?['count'] is num) && (j?['count'] as num).toInt() > 0));
 
       if (ok) {
@@ -102,7 +105,7 @@ class _BroadcastNotificationPageState extends State<BroadcastNotificationPage> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: _brown,
+          backgroundColor: _primary,
           foregroundColor: Colors.white,
           title: const Text('إرسال إشعار للجميع'),
         ),
@@ -128,7 +131,7 @@ class _BroadcastNotificationPageState extends State<BroadcastNotificationPage> {
               height: 48,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _brown,
+                  backgroundColor: _primary,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -176,11 +179,11 @@ class _Input extends StatelessWidget {
       textDirection: TextDirection.rtl,
       decoration: InputDecoration(
         hintText: hint,
-        prefixIcon: Icon(icon, color: _brown),
+        prefixIcon: Icon(icon, color: _primary),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _brown, width: 1.2),
+          borderSide: const BorderSide(color: _primary, width: 1.2),
         ),
       ),
     );

@@ -329,6 +329,35 @@ class CategoriesController extends GetxController {
     }
   }
 
+  Future<void> _syncItemsControllerCategories() async {
+    try {
+      if (Get.isRegistered<ItemsController>()) {
+        final ic = Get.find<ItemsController>();
+        await ic.refreshCategoriesAfterCategoryChange();
+      }
+    } catch (e) {
+      debugPrint('sync ItemsController categories error: $e');
+    }
+  }
+
+  Future<void> refreshLive({bool silent = true}) async {
+    final bid = _branchId;
+    if (bid != null) {
+      _cacheCategoriesByBranch.remove(bid);
+      _cacheItemCountByBranch.remove(bid);
+      _cacheTimeByBranch.remove(bid);
+    }
+    if (!silent) {
+      categories.clear();
+      filtered.clear();
+      itemCountByCatId.clear();
+    }
+    await fetchAll();
+    categories.refresh();
+    filtered.refresh();
+    itemCountByCatId.refresh();
+  }
+
   /* =================== جلب الأقسام + الأصناف (للعدّادات) =================== */
   Future<void> fetchAll() async {
     // 🔹 1) جرّب كاش RAM أولاً لو القائمة فاضية
@@ -390,54 +419,42 @@ class CategoriesController extends GetxController {
 
       categories.assignAll(listCats);
 
-      /* ---------- 2) جلب الأصناف لحساب عدد كل قسم ---------- */
-      final resItemsRaw = await _api.get(Env.itemsList);
-      final jItems = _safeDecode(resItemsRaw);
-
+      /* ---------- 2) حساب عدد الأصناف لكل قسم ---------- */
       List<ItemModel> listItems = [];
 
-      if (jItems != null) {
-        if (jItems['status'] == 'success') {
-          final data =
-              (jItems['data'] ?? jItems['items'] ?? jItems['list'] ?? [])
-                  as List;
-          listItems = data
-              .map(
-                (e) => ItemModel.fromJson(Map<String, dynamic>.from(e as Map)),
-              )
-              .toList();
-        } else if (jItems['ok'] == true) {
-          final data =
-              (jItems['items'] ?? jItems['data'] ?? jItems['list'] ?? [])
-                  as List;
-          listItems = data
-              .map(
-                (e) => ItemModel.fromJson(Map<String, dynamic>.from(e as Map)),
-              )
-              .toList();
-        }
-      } else if (resItemsRaw is Map && resItemsRaw['status'] == 'success') {
-        listItems = (resItemsRaw['data'] as List)
-            .map((e) => ItemModel.fromJson(e as Map<String, dynamic>))
-            .toList();
-      } else if (resItemsRaw is List) {
-        listItems = resItemsRaw
-            .map((e) => ItemModel.fromJson(e as Map<String, dynamic>))
-            .toList();
-      }
-
-      // ✅ Fallback: لو فشلنا في قراءة الأصناف من الـ API نستخدم ItemsController
-      if (listItems.isEmpty && Get.isRegistered<ItemsController>()) {
+      if (Get.isRegistered<ItemsController>()) {
         final ic = Get.find<ItemsController>();
-        if (ic.items.isEmpty && ic.loading.isFalse) {
-          await ic.fetchItems();
-        }
         if (ic.items.isNotEmpty) {
           listItems = List<ItemModel>.from(ic.items);
         }
       }
 
-      // بناء خريطة: category_id -> count
+      if (listItems.isEmpty) {
+        try {
+          final resItemsRaw = await _api.get(
+            Env.itemsList,
+            query: {'t': DateTime.now().millisecondsSinceEpoch.toString()},
+          );
+          final jItems = _safeDecode(resItemsRaw);
+
+          if (jItems != null) {
+            final data =
+                (jItems['data'] ?? jItems['items'] ?? jItems['list'] ?? [])
+                    as List;
+            listItems = data
+                .map(
+                  (e) =>
+                      ItemModel.fromJson(Map<String, dynamic>.from(e as Map)),
+                )
+                .toList();
+          } else if (resItemsRaw is List) {
+            listItems = resItemsRaw
+                .map((e) => ItemModel.fromJson(e as Map<String, dynamic>))
+                .toList();
+          }
+        } catch (_) {}
+      }
+
       final map = <int, int>{};
       for (final it in listItems) {
         final cid = it.categoryId;
@@ -507,6 +524,7 @@ class CategoriesController extends GetxController {
         Env.uploadImage, // upload_image.php
         filePath: imageFile!.path,
         fieldName: 'image',
+        extraFields: const {'folder': 'categories'},
       );
 
       final j = _safeDecode(res);
@@ -606,12 +624,15 @@ class CategoriesController extends GetxController {
         _cacheTime = DateTime.now();
         _saveToPersistentCache();
 
+        await refreshLive();
         resetForm();
+        await _syncItemsControllerCategories();
         return true;
       } else if (j == null && looksSuccess) {
         // نجاح بدون JSON صالح: نحدّث القائمة من الخادم
-        await fetchAll();
+        await refreshLive();
         resetForm();
+        await _syncItemsControllerCategories();
         return true;
       }
 
@@ -698,6 +719,7 @@ class CategoriesController extends GetxController {
         _cacheTime = DateTime.now();
         _saveToPersistentCache();
 
+        await refreshLive();
         resetForm();
         return true;
       } else {
@@ -755,6 +777,8 @@ class CategoriesController extends GetxController {
         _cacheTime = DateTime.now();
         _saveToPersistentCache();
 
+        await refreshLive();
+        await _syncItemsControllerCategories();
         Get.snackbar(
           'تم',
           'تم حذف ${c.name}',

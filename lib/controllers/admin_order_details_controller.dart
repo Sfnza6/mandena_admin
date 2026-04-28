@@ -1,17 +1,12 @@
-// lib/controllers/admin_order_details_controller.dart
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:get/get.dart';
 
-import '../core/services/api_service.dart';
 import '../core/config/env.dart';
+import '../core/services/api_service.dart';
 
-/* ============================================================
-   Extra Model
-   ============================================================ */
 class AdminOrderExtraModel {
   final String name;
   final int quantity;
@@ -38,9 +33,6 @@ class AdminOrderExtraModel {
       );
 }
 
-/* ============================================================
-   Component Model
-   ============================================================ */
 class AdminOrderComponentModel {
   final int id;
   final String name;
@@ -65,9 +57,6 @@ class AdminOrderComponentModel {
       );
 }
 
-/* ============================================================
-   Item Model
-   ============================================================ */
 class AdminOrderItemModel {
   final int orderItemId;
   final int itemId;
@@ -77,7 +66,6 @@ class AdminOrderItemModel {
   final double lineTotal;
   final double lineTotalWithExtras;
   final List<AdminOrderExtraModel> extras;
-
   final List<AdminOrderComponentModel> componentsAdd;
   final List<AdminOrderComponentModel> componentsRem;
 
@@ -110,9 +98,8 @@ class AdminOrderItemModel {
 
     List pickList(Map<String, dynamic> src, List<String> keys) {
       for (final k in keys) {
-        if (src.containsKey(k) && src[k] != null) {
-          final v = src[k];
-          final lst = asList(v);
+        if (src[k] != null) {
+          final lst = asList(src[k]);
           if (lst.isNotEmpty) return lst;
         }
       }
@@ -128,49 +115,44 @@ class AdminOrderItemModel {
       return true;
     }
 
-    final extrasList = (j['extras'] is List)
-        ? (j['extras'] as List)
-            .map(
-              (e) =>
-                  AdminOrderExtraModel.fromJson(Map<String, dynamic>.from(e)),
-            )
-            .toList()
-        : const <AdminOrderExtraModel>[];
+    final extrasList = pickList(j, const ['extras'])
+        .map((e) => AdminOrderExtraModel.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
 
-    final rawAdd = pickList(j, const [
-      'components_add',
-      'componentsAdd',
-    ]).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-
-    final rawRem = pickList(j, const [
-      'components_rem',
-      'componentsRem',
-      'components_removed',
-    ]).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-
-    final compsAdd = rawAdd
+    final addList = pickList(j, const ['components_add', 'componentsAdd'])
+        .map((e) => Map<String, dynamic>.from(e as Map))
         .where(belongsToThisItem)
         .map(AdminOrderComponentModel.fromJson)
         .toList();
 
-    final compsRem = rawRem
-        .where(belongsToThisItem)
-        .map(AdminOrderComponentModel.fromJson)
-        .toList();
+    final remList =
+        pickList(j, const [
+              'components_rem',
+              'componentsRem',
+              'components_removed',
+            ])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .where(belongsToThisItem)
+            .map(AdminOrderComponentModel.fromJson)
+            .toList();
 
-    final lineTotalVal = (j['line_total'] is num)
+    final lineTotal = (j['line_total'] is num)
         ? (j['line_total'] as num).toDouble()
         : (double.tryParse('${j['line_total']}') ?? 0.0);
 
-    final extrasSum =
-        extrasList.fold<double>(0.0, (s, x) => s + (x.price * x.quantity));
-    final compsAddSum =
-        compsAdd.fold<double>(0.0, (s, x) => s + (x.price * x.quantity));
-    final fallbackWithExtras = lineTotalVal + extrasSum + compsAddSum;
+    final extrasSum = extrasList.fold<double>(
+      0.0,
+      (s, x) => s + (x.price * x.quantity),
+    );
+    final addSum = addList.fold<double>(
+      0.0,
+      (s, x) => s + (x.price * x.quantity),
+    );
 
-    final ltw = (j['line_total_with_extras'] is num)
+    final withExtras = (j['line_total_with_extras'] is num)
         ? (j['line_total_with_extras'] as num).toDouble()
-        : (double.tryParse('${j['line_total_with_extras']}') ?? 0.0);
+        : (double.tryParse('${j['line_total_with_extras']}') ??
+              (lineTotal + extrasSum + addSum));
 
     return AdminOrderItemModel(
       orderItemId: orderItemId,
@@ -180,18 +162,15 @@ class AdminOrderItemModel {
       price: (j['price'] is num)
           ? (j['price'] as num).toDouble()
           : (double.tryParse('${j['price']}') ?? 0.0),
-      lineTotal: lineTotalVal,
-      lineTotalWithExtras: (ltw > 0) ? ltw : fallbackWithExtras,
+      lineTotal: lineTotal,
+      lineTotalWithExtras: withExtras,
       extras: extrasList,
-      componentsAdd: compsAdd,
-      componentsRem: compsRem,
+      componentsAdd: addList,
+      componentsRem: remList,
     );
   }
 }
 
-/* ============================================================
-   Header Model
-   ============================================================ */
 class AdminOrderHeaderModel {
   final int id;
   final int userId;
@@ -203,9 +182,9 @@ class AdminOrderHeaderModel {
   final String createdAt;
   final double deliveryFee;
   final double grandTotal;
-
   final int paymentMethod;
   final String gateway;
+  final int branchId;
 
   AdminOrderHeaderModel({
     required this.id,
@@ -220,6 +199,7 @@ class AdminOrderHeaderModel {
     required this.grandTotal,
     required this.paymentMethod,
     required this.gateway,
+    required this.branchId,
   });
 
   factory AdminOrderHeaderModel.fromJson(Map<String, dynamic> j) =>
@@ -240,15 +220,74 @@ class AdminOrderHeaderModel {
         grandTotal: (j['grand_total'] is num)
             ? (j['grand_total'] as num).toDouble()
             : (double.tryParse('${j['grand_total']}') ?? 0.0),
-        paymentMethod:
-            int.tryParse('${j['payment_method'] ?? 0}') ?? 0,
+        paymentMethod: int.tryParse('${j['payment_method'] ?? 0}') ?? 0,
         gateway: (j['gateway'] ?? '').toString(),
+        branchId: int.tryParse('${j['branch_id'] ?? 0}') ?? 0,
       );
 }
 
-/* ============================================================
-   Controller + الكــــاش
-   ============================================================ */
+class AdminOrderCustomerModel {
+  final int id;
+  final String name;
+  final String phone;
+  final String address;
+
+  const AdminOrderCustomerModel({
+    required this.id,
+    required this.name,
+    required this.phone,
+    required this.address,
+  });
+
+  factory AdminOrderCustomerModel.fromJson(Map<String, dynamic> j) =>
+      AdminOrderCustomerModel(
+        id: int.tryParse('${j['id'] ?? 0}') ?? 0,
+        name: (j['name'] ?? '').toString(),
+        phone: (j['phone'] ?? '').toString(),
+        address: (j['address'] ?? '').toString(),
+      );
+}
+
+class AdminOrderBranchModel {
+  final int id;
+  final String name;
+  final String address;
+  final String phone;
+
+  const AdminOrderBranchModel({
+    required this.id,
+    required this.name,
+    required this.address,
+    required this.phone,
+  });
+
+  factory AdminOrderBranchModel.fromJson(Map<String, dynamic> j) =>
+      AdminOrderBranchModel(
+        id: int.tryParse('${j['id'] ?? 0}') ?? 0,
+        name: (j['name'] ?? '').toString(),
+        address: (j['address'] ?? '').toString(),
+        phone: (j['phone'] ?? '').toString(),
+      );
+}
+
+class _OrderDetailsCacheEntry {
+  final AdminOrderHeaderModel header;
+  final List<AdminOrderItemModel> items;
+  final Map<String, dynamic>? driver;
+  final AdminOrderCustomerModel? customer;
+  final AdminOrderBranchModel? branch;
+  final DateTime at;
+
+  const _OrderDetailsCacheEntry({
+    required this.header,
+    required this.items,
+    required this.driver,
+    required this.customer,
+    required this.branch,
+    required this.at,
+  });
+}
+
 class AdminOrderDetailsController extends GetxController {
   final _api = ApiService();
 
@@ -256,21 +295,16 @@ class AdminOrderDetailsController extends GetxController {
   final header = Rxn<AdminOrderHeaderModel>();
   final items = <AdminOrderItemModel>[].obs;
   final driver = Rxn<Map<String, dynamic>>();
+  final customer = Rxn<AdminOrderCustomerModel>();
+  final branch = Rxn<AdminOrderBranchModel>();
 
   late int orderId;
   int? userId;
 
-  /* ===========================
-     ⏳ كــــــاش (In-Memory)
-     =========================== */
-
-  static final Map<int, AdminOrderHeaderModel> _headerCache = {};
-  static final Map<int, List<AdminOrderItemModel>> _itemsCache = {};
-  static final Map<int, DateTime> _cacheTime = {};
-
+  static final Map<int, _OrderDetailsCacheEntry> _cache = {};
   static const Duration _ttl = Duration(seconds: 30);
 
-  bool _isFresh(DateTime? t) {
+  bool _fresh(DateTime? t) {
     if (t == null) return false;
     return DateTime.now().difference(t) < _ttl;
   }
@@ -279,7 +313,8 @@ class AdminOrderDetailsController extends GetxController {
   void onInit() {
     super.onInit();
     final args = Get.arguments;
-    orderId = int.tryParse(
+    orderId =
+        int.tryParse(
           '${args?['orderId'] ?? args?['order_id'] ?? args?['id'] ?? 0}',
         ) ??
         0;
@@ -292,28 +327,24 @@ class AdminOrderDetailsController extends GetxController {
     fetch();
   }
 
-  /* ============================================================
-     fetch() — مع إضافة الكــــاش فقط
-     ============================================================ */
   Future<void> fetch() async {
     if (orderId <= 0) {
-      Get.snackbar('تنبيه', 'رقم الطلب غير صحيح.');
+      Get.snackbar('تنبيه', 'رقم الطلب غير صحيح');
       return;
     }
 
-    // 1) إن وُجد كاش حديث → استخدمه بالكامل دون ريكوست
-    if (_headerCache.containsKey(orderId) &&
-        _itemsCache.containsKey(orderId) &&
-        _isFresh(_cacheTime[orderId])) {
-      header.value = _headerCache[orderId];
-      items.assignAll(_itemsCache[orderId]!);
+    final cached = _cache[orderId];
+    if (cached != null && _fresh(cached.at)) {
+      header.value = cached.header;
+      items.assignAll(cached.items);
+      driver.value = cached.driver;
+      customer.value = cached.customer;
+      branch.value = cached.branch;
       return;
     }
 
-    // 2) لو لا يوجد كاش → اعمل ريكوست عادي (بدون تغيير منطقك)
     try {
       loading(true);
-
       final res = await _api.get(
         Env.orderDetails,
         query: {
@@ -324,74 +355,88 @@ class AdminOrderDetailsController extends GetxController {
       );
 
       final root = res is String ? jsonDecode(res) : res;
-
       if (root is! Map) {
-        _failClean();
-        Get.snackbar('تعذّر التحميل', 'رد غير متوقّع من الخادم.');
+        _clear();
+        Get.snackbar('خطأ', 'رد غير متوقع من الخادم');
         return;
       }
 
-      Map<String, dynamic>? data;
-      if (root['data'] is Map) {
-        data = Map<String, dynamic>.from(root['data']);
-      } else if (root['order'] != null || root['items'] != null) {
-        data = Map<String, dynamic>.from(root);
-      }
+      final data = (root['data'] is Map)
+          ? Map<String, dynamic>.from(root['data'])
+          : Map<String, dynamic>.from(root);
 
-      if (data == null) {
-        _failClean();
-        Get.snackbar('تعذّر التحميل', 'لم نتمكّن من تحميل تفاصيل الطلب.');
-        return;
-      }
-
-      header.value = AdminOrderHeaderModel.fromJson(
+      final hdr = AdminOrderHeaderModel.fromJson(
         Map<String, dynamic>.from(data['order'] ?? const {}),
       );
-
-      final list = (data['items'] ?? []) as List;
-      final parsedItems = list
+      final parsedItems = ((data['items'] ?? const []) as List)
           .map(
-            (e) => AdminOrderItemModel.fromJson(
-              Map<String, dynamic>.from(e),
-            ),
+            (e) => AdminOrderItemModel.fromJson(Map<String, dynamic>.from(e)),
           )
           .toList();
 
+      final parsedDriver = (data['driver'] is Map)
+          ? Map<String, dynamic>.from(data['driver'])
+          : null;
+      final parsedCustomer = (data['customer'] is Map)
+          ? AdminOrderCustomerModel.fromJson(
+              Map<String, dynamic>.from(data['customer']),
+            )
+          : null;
+      final parsedBranch = (data['branch'] is Map)
+          ? AdminOrderBranchModel.fromJson(
+              Map<String, dynamic>.from(data['branch']),
+            )
+          : null;
+
+      header.value = hdr;
       items.assignAll(parsedItems);
+      driver.value = parsedDriver;
+      customer.value = parsedCustomer;
+      branch.value = parsedBranch;
 
-      driver.value = (data['driver'] == null)
-          ? null
-          : Map<String, dynamic>.from(data['driver']);
-
-      // 3) تخزين في الكاش
-      _headerCache[orderId] = header.value!;
-      _itemsCache[orderId] = parsedItems;
-      _cacheTime[orderId] = DateTime.now();
+      _cache[orderId] = _OrderDetailsCacheEntry(
+        header: hdr,
+        items: parsedItems,
+        driver: parsedDriver,
+        customer: parsedCustomer,
+        branch: parsedBranch,
+        at: DateTime.now(),
+      );
     } catch (e) {
-      _failClean();
+      _clear();
       Get.snackbar('خطأ', _friendlyError(e));
     } finally {
       loading(false);
     }
   }
 
-  /* ============================================================
-     Helpers
-     ============================================================ */
-  void _failClean() {
+  void _clear() {
     header.value = null;
     items.clear();
     driver.value = null;
+    customer.value = null;
+    branch.value = null;
   }
 
-  double get itemsTotal {
-    if (items.isEmpty) return 0.0;
+  double get itemsBaseTotal {
+    return items.fold<double>(0.0, (s, it) => s + it.lineTotal);
+  }
+
+  double get extrasAndAddsTotal {
     return items.fold<double>(
       0.0,
       (sum, it) =>
           sum +
-          (it.lineTotalWithExtras > 0 ? it.lineTotalWithExtras : it.lineTotal),
+          it.extras.fold<double>(0.0, (a, e) => a + (e.price * e.quantity)) +
+          it.componentsAdd.fold<double>(
+            0.0,
+            (a, c) => a + (c.price * c.quantity),
+          ),
     );
+  }
+
+  double get itemsTotal {
+    return items.fold<double>(0.0, (s, it) => s + it.lineTotalWithExtras);
   }
 
   double get computedGrandTotal {
@@ -401,9 +446,10 @@ class AdminOrderDetailsController extends GetxController {
     return itemsTotal + h.deliveryFee;
   }
 
-  String deliveryTypeArabic(String key) {
-    switch (key.toLowerCase()) {
+  String orderTypeArabic(String key) {
+    switch (key.toLowerCase().trim()) {
       case 'pickup':
+      case 'takeaway':
         return 'استلام';
       case 'delivery':
         return 'توصيل';
@@ -412,26 +458,65 @@ class AdminOrderDetailsController extends GetxController {
     }
   }
 
-  String _friendlyError(Object e) {
-    final t = e.toString().toLowerCase();
-
-    if (e is TimeoutException || t.contains('timeout')) {
-      return 'انتهت مهلة الاتصال.';
+  String statusArabic(String key) {
+    switch (key.toLowerCase().trim()) {
+      case 'pending':
+        return 'قيد الانتظار';
+      case 'processing':
+        return 'قيد التجهيز';
+      case 'assigned':
+        return 'تم إسناده للسائق';
+      case 'accepted':
+        return 'مقبول';
+      case 'cancelled':
+        return 'ملغي';
+      case 'success':
+      case 'delivered':
+        return 'مكتمل';
+      case 'on_way':
+      case 'on the way':
+        return 'في الطريق';
+      default:
+        return key;
     }
-    if (_looksOffline(t) || e is SocketException) {
-      return 'لا يوجد اتصال بالإنترنت.';
-    }
-    if (t.contains('format exception') || t.contains('json')) {
-      return 'خطأ في قراءة البيانات.';
-    }
-    return 'حدث خلل غير متوقّع.';
   }
 
-  bool _looksOffline(String t) {
-    return t.contains('failed host lookup') ||
-        t.contains('socketexception') ||
-        t.contains('network is unreachable') ||
-        t.contains('connection refused') ||
-        t.contains('dns');
+  String paymentMethodArabic(AdminOrderHeaderModel h) {
+    final isOnline =
+        h.paymentMethod == 1 ||
+        (h.gateway.isNotEmpty && h.gateway.toLowerCase() != 'cash');
+    return isOnline ? 'دفع أونلاين' : 'دفع عند الاستلام';
+  }
+
+  String gatewayArabic(String gateway) {
+    switch (gateway.toLowerCase().trim()) {
+      case 'yusor':
+      case 'yesser':
+        return 'يسر / مصرف الجمهورية';
+      case 'sahari':
+        return 'الصحاري';
+      case 'aman':
+        return 'الأمان';
+      case 'tadawul':
+        return 'تداول';
+      case 'cash':
+      case '':
+        return '—';
+      default:
+        return gateway;
+    }
+  }
+
+  String _friendlyError(Object e) {
+    final t = e.toString().toLowerCase();
+    if (e is TimeoutException || t.contains('timeout')) {
+      return 'انتهت مهلة الاتصال';
+    }
+    if (e is SocketException || t.contains('socket')) {
+      return 'تعذر الاتصال بالخادم';
+    }
+    if (t.contains('404')) return 'الملف المطلوب غير موجود على السيرفر';
+    if (t.contains('500')) return 'حصل خطأ داخلي في السيرفر';
+    return 'تعذر تحميل تفاصيل الطلب';
   }
 }

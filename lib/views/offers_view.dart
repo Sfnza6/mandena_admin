@@ -14,8 +14,8 @@ import '../../data/models/offer_model.dart';
 class OffersView extends StatelessWidget {
   const OffersView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
-  static const pageBg = Color(0xFFF3F0ED);
+  static const primary = Color(0xFFB85A1B);
+  static const pageBg = Color(0xFFF7F7F9);
 
   // عدّل هذا حسب بيئتك
   static const String kBaseUrl = 'https://evoranta.ly';
@@ -116,7 +116,7 @@ class OffersView extends StatelessWidget {
         floatingActionButton: Padding(
           padding: const EdgeInsets.only(right: 16, bottom: 16),
           child: FloatingActionButton(
-            backgroundColor: brown,
+            backgroundColor: primary,
             elevation: 4,
             onPressed: () => _showAddSheet(context, c),
             child: const Icon(Icons.add, color: Colors.white, size: 28),
@@ -162,13 +162,13 @@ class OffersView extends StatelessWidget {
                 title: 'إضافة عرض جديد',
                 onSubmit: (title, price, imageUrl, [imagePath]) async {
                   // نمرر القيم مباشرة للدالة addOffer الحديثة
-                  await c.addOffer(
+                  final ok = await c.addOffer(
                     title: title,
                     price: price,
                     imageUrl: imageUrl,
-                    imagePath: imagePath, // في حال كانت صورة من الجهاز
+                    imagePath: imagePath,
                   );
-                  Get.back(closeOverlays: true);
+                  if (ok) Get.back(closeOverlays: true);
                 },
               ),
             ),
@@ -223,14 +223,14 @@ class _Header extends StatelessWidget {
   final OffersController controller;
   final TextEditingController searchCtrl;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: const BoxDecoration(
-        color: brown,
+        color: primary,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(18)),
       ),
       child: Row(
@@ -297,7 +297,7 @@ class _OfferCard extends StatelessWidget {
   final double? price;
   final VoidCallback onView, onEdit, onDelete;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -328,7 +328,7 @@ class _OfferCard extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: brown,
+                  color: primary,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -366,7 +366,7 @@ class _OfferCard extends StatelessWidget {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: brown,
+                      color: primary,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -410,7 +410,7 @@ class _OfferCard extends StatelessWidget {
     VoidCallback onTap, {
     bool danger = false,
   }) {
-    final color = danger ? Colors.red : brown;
+    final color = danger ? Colors.red : primary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -482,7 +482,7 @@ class _OfferFormSheet extends StatefulWidget {
 }
 
 class _OfferFormSheetState extends State<_OfferFormSheet> {
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   final _titleCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
@@ -534,6 +534,7 @@ class _OfferFormSheetState extends State<_OfferFormSheet> {
         Env.uploadImage,
         filePath: _imageFile!.path,
         fieldName: 'image', // مهم يطابق $_FILES['image'] في PHP
+        extraFields: const {'folder': 'offers'},
       );
 
       // 1) حاول نستخرج الرابط مباشرة من أي شكل رد
@@ -639,7 +640,7 @@ class _OfferFormSheetState extends State<_OfferFormSheet> {
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: brown,
+              color: primary,
               borderRadius: BorderRadius.circular(16),
             ),
             alignment: Alignment.center,
@@ -713,7 +714,7 @@ class _OfferFormSheetState extends State<_OfferFormSheet> {
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: brown,
+                        backgroundColor: primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),

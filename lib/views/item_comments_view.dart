@@ -5,7 +5,7 @@ import 'package:mandena_admin/core/routes/app_routes.dart';
 import '../controllers/item_comments_controller.dart';
 import '../controllers/AuthController.dart';
 
-const _brown = Color(0xFF6F3F17);
+const _primary = Color(0xFFB85A1B);
 const _bg = Color(0xFFF8F3EF);
 
 class ItemCommentsView extends StatelessWidget {
@@ -31,14 +31,14 @@ class ItemCommentsView extends StatelessWidget {
         appBar: AppBar(
           elevation: 0,
           backgroundColor: _bg,
-          foregroundColor: _brown,
+          foregroundColor: _primary,
           centerTitle: true,
           title: const Text(
             'تعليقات الصنف',
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 18,
-              color: _brown,
+              color: _primary,
             ),
           ),
           actions: [
@@ -53,7 +53,7 @@ class ItemCommentsView extends StatelessWidget {
             return const Center(
               child: CircularProgressIndicator(
                 strokeWidth: 2.4,
-                valueColor: AlwaysStoppedAnimation<Color>(_brown),
+                valueColor: AlwaysStoppedAnimation<Color>(_primary),
               ),
             );
           }
@@ -159,12 +159,12 @@ class ItemCommentsView extends StatelessWidget {
                               icon: const Icon(
                                 Icons.person_outline,
                                 size: 18,
-                                color: _brown,
+                                color: _primary,
                               ),
                               label: const Text(
                                 'حساب صاحب التعليق',
                                 style: TextStyle(
-                                  color: _brown,
+                                  color: _primary,
                                   fontSize: 12.5,
                                   fontWeight: FontWeight.w600,
                                 ),

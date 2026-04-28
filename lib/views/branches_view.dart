@@ -7,8 +7,11 @@ import '../data/models/branch_model.dart';
 class BranchesView extends GetView<BranchesController> {
   const BranchesView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
-  static const pageBg = Color(0xFFF3F0ED);
+  static const primary = Color(0xFFB85A1B);
+  static const pageBg = Color(0xFFF7F7F9);
+  static const textMain = Color(0xFF111827);
+  static const textSub = Color(0xFF8B95A7);
+  static const soft = Color(0xFFF6E8DD);
 
   @override
   Widget build(BuildContext context) {
@@ -19,28 +22,40 @@ class BranchesView extends GetView<BranchesController> {
         appBar: AppBar(
           title: const Text('الفروع'),
           centerTitle: true,
-          backgroundColor: brown,
+          backgroundColor: primary,
           foregroundColor: Colors.white,
+          elevation: 0,
         ),
-        floatingActionButton: FloatingActionButton(
-          backgroundColor: brown,
+        floatingActionButton: FloatingActionButton.extended(
+          backgroundColor: primary,
           onPressed: _showAddSheet,
-          child: const Icon(Icons.add, color: Colors.white),
+          icon: const Icon(
+            Icons.add_location_alt_outlined,
+            color: Colors.white,
+          ),
+          label: const Text('إضافة فرع', style: TextStyle(color: Colors.white)),
         ),
         body: Obx(() {
           if (controller.loading.value) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(color: primary),
+            );
           }
 
           if (controller.branches.isEmpty) {
             return const Center(child: Text('لا توجد فروع'));
           }
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(12),
-            itemCount: controller.branches.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (_, i) => _BranchCard(branch: controller.branches[i]),
+          return RefreshIndicator(
+            color: primary,
+            onRefresh: controller.fetchBranches,
+            child: ListView.separated(
+              padding: const EdgeInsets.all(14),
+              itemCount: controller.branches.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (_, i) =>
+                  _BranchCard(branch: controller.branches[i]),
+            ),
           );
         }),
       ),
@@ -52,160 +67,144 @@ class BranchesView extends GetView<BranchesController> {
 
     Get.bottomSheet(
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       Directionality(
         textDirection: TextDirection.rtl,
         child: SingleChildScrollView(
-          child: Padding(
+          child: Container(
             padding: EdgeInsets.fromLTRB(
               16,
+              14,
               16,
-              16,
-              MediaQuery.of(Get.context!).viewInsets.bottom + 24,
+              MediaQuery.of(Get.context!).viewInsets.bottom + 20,
             ),
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'إضافة فرع',
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 46,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(99),
                   ),
-                  // const SizedBox(height: 14),
-                  // _textField(controller.codeCtrl, 'رمز الفرع (code)'),
-                  const SizedBox(height: 12),
-                  _textField(controller.nameCtrl, 'اسم الفرع'),
-                  const SizedBox(height: 12),
-                  _textField(controller.addressCtrl, 'العنوان'),
-                  const SizedBox(height: 12),
-                  _textField(
-                    controller.phoneCtrl,
-                    'الهاتف',
-                    keyboardType: TextInputType.phone,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _textField(
-                          controller.latCtrl,
-                          'lat',
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                            signed: true,
-                          ),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'إضافة فرع جديد',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'أدخل اسم الفرع ثم اختر موقعه من الخريطة',
+                  style: TextStyle(color: textSub, fontSize: 13),
+                ),
+                const SizedBox(height: 18),
+                _textField(controller.nameCtrl, 'اسم الفرع'),
+                const SizedBox(height: 12),
+                _textField(controller.addressCtrl, 'العنوان', maxLines: 2),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _textField(
+                        controller.latCtrl,
+                        'خط العرض',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                          signed: true,
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _textField(
-                          controller.lngCtrl,
-                          'lng',
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                            signed: true,
-                          ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _textField(
+                        controller.lngCtrl,
+                        'خط الطول',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                          signed: true,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _textField(
-                          controller.pricePerKmCtrl,
-                          'سعر الكيلو',
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                        ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: primary,
+                      side: const BorderSide(color: primary),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _textField(
-                          controller.maxDeliveryKmCtrl,
-                          'أقصى مسافة توصيل',
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Obx(
-                    () => Column(
-                      children: [
-                        SwitchListTile(
-                          value: controller.supportsDelivery.value,
-                          onChanged: (v) =>
-                              controller.supportsDelivery.value = v,
-                          title: const Text('يدعم التوصيل'),
-                          activeThumbColor: brown,
-                        ),
-                        SwitchListTile(
-                          value: controller.supportsPickup.value,
-                          onChanged: (v) => controller.supportsPickup.value = v,
-                          title: const Text('يدعم الاستلام'),
-                          activeThumbColor: brown,
-                        ),
-                        SwitchListTile(
-                          value: controller.isActive.value,
-                          onChanged: (v) => controller.isActive.value = v,
-                          title: const Text('الفرع نشط'),
-                          activeThumbColor: brown,
-                        ),
-                        // SwitchListTile(
-                        //   value: controller.isDefault.value,
-                        //   onChanged: (v) => controller.isDefault.value = v,
-                        //   title: const Text('فرع افتراضي'),
-                        //   activeColor: brown,
-                        // ),
-                      ],
+                    ),
+                    onPressed: () => controller.pickLocation(),
+                    icon: const Icon(Icons.map_outlined),
+                    label: const Text(
+                      'اختيار الموقع من الخريطة',
+                      style: TextStyle(fontWeight: FontWeight.w800),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: Obx(
-                      () => ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: brown,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                const SizedBox(height: 8),
+                Obx(
+                  () => SwitchListTile(
+                    value: controller.isActive.value,
+                    onChanged: (v) => controller.isActive.value = v,
+                    title: const Text('الفرع نشط'),
+                    activeThumbColor: primary,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: Obx(
+                    () => ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primary,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        onPressed: controller.saving.value
-                            ? null
-                            : () async {
-                                final ok = await controller.addBranch();
-                                if (ok) Get.back();
-                              },
-                        child: controller.saving.value
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text(
-                                'حفظ',
-                                style: TextStyle(color: Colors.white),
+                      ),
+                      onPressed: controller.saving.value
+                          ? null
+                          : () async {
+                              final ok = await controller.addBranch();
+                              if (ok) Get.back();
+                            },
+                      child: controller.saving.value
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
                               ),
-                      ),
+                            )
+                          : const Text(
+                              'حفظ الفرع',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
       ),
-      backgroundColor: Colors.white,
     );
   }
 
@@ -213,23 +212,24 @@ class BranchesView extends GetView<BranchesController> {
     TextEditingController ctrl,
     String hint, {
     TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
   }) {
     return TextField(
       controller: ctrl,
       keyboardType: keyboardType,
-      decoration: _decor(hint),
+      maxLines: maxLines,
+      textAlign: TextAlign.right,
+      decoration: InputDecoration(
+        hintText: hint,
+        filled: true,
+        fillColor: const Color(0xFFF8FAFC),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+      ),
     );
   }
-
-  InputDecoration _decor(String hint) => InputDecoration(
-    hintText: hint,
-    filled: true,
-    fillColor: const Color(0xFFF2EFEA),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
-      borderSide: BorderSide.none,
-    ),
-  );
 }
 
 class _BranchCard extends GetView<BranchesController> {
@@ -237,7 +237,10 @@ class _BranchCard extends GetView<BranchesController> {
 
   final BranchModel branch;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = BranchesView.primary;
+  static const textMain = BranchesView.textMain;
+  static const textSub = BranchesView.textSub;
+  static const soft = BranchesView.soft;
 
   @override
   Widget build(BuildContext context) {
@@ -245,24 +248,28 @@ class _BranchCard extends GetView<BranchesController> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(.06),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(.05),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 23,
-            backgroundColor: const Color(0xFFEEE3D9),
-            child: Text(
-              branch.name.isNotEmpty ? branch.name.characters.first : 'ف',
-              style: const TextStyle(color: brown, fontWeight: FontWeight.bold),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: soft,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.store_mall_directory_outlined,
+              color: primary,
             ),
           ),
           const SizedBox(width: 12),
@@ -277,78 +284,45 @@ class _BranchCard extends GetView<BranchesController> {
                         branch.name,
                         style: const TextStyle(
                           fontWeight: FontWeight.w900,
-                          fontSize: 15,
+                          fontSize: 16,
+                          color: textMain,
                         ),
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
+                        horizontal: 10,
+                        vertical: 5,
                       ),
                       decoration: BoxDecoration(
                         color: branch.isActive
                             ? Colors.green.withOpacity(.12)
                             : Colors.red.withOpacity(.12),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
                         branch.isActive ? 'نشط' : 'موقوف',
                         style: TextStyle(
                           color: branch.isActive ? Colors.green : Colors.red,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                           fontSize: 12,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'الكود: ${branch.code}',
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 Text(
                   branch.addressText.isNotEmpty
                       ? branch.addressText
                       : 'بدون عنوان',
-                  style: const TextStyle(color: Colors.black54),
-                ),
-                if (branch.phone.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    'الهاتف: ${branch.phone}',
-                    style: const TextStyle(color: Colors.black54),
-                  ),
-                ],
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    _chip('التوصيل', branch.supportsDelivery),
-                    _chip('الاستلام', branch.supportsPickup),
-                    if (branch.isDefault) _defaultChip(),
-                  ],
+                  style: const TextStyle(color: textSub, height: 1.5),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'سعر الكيلو: ${branch.pricePerKm}',
-                  style: const TextStyle(fontSize: 12, color: Colors.black87),
+                  'الإحداثيات: ${branch.lat ?? '-'} , ${branch.lng ?? '-'}',
+                  style: const TextStyle(fontSize: 12.5, color: textSub),
                 ),
-                Text(
-                  'أقصى مسافة: ${branch.maxDeliveryKm} كم',
-                  style: const TextStyle(fontSize: 12, color: Colors.black87),
-                ),
-                if (branch.lat != null || branch.lng != null)
-                  Text(
-                    'الموقع: ${branch.lat ?? '-'} , ${branch.lng ?? '-'}',
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
               ],
             ),
           ),
@@ -356,7 +330,7 @@ class _BranchCard extends GetView<BranchesController> {
             children: [
               IconButton(
                 onPressed: () => _showEditSheet(context),
-                icon: const Icon(Icons.edit_outlined, color: Colors.orange),
+                icon: const Icon(Icons.edit_outlined, color: Color(0xFFB85A1B)),
               ),
               IconButton(
                 onPressed: () => controller.deleteBranch(branch),
@@ -369,219 +343,150 @@ class _BranchCard extends GetView<BranchesController> {
     );
   }
 
-  Widget _chip(String text, bool active) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: active
-            ? Colors.green.withOpacity(.12)
-            : Colors.grey.withOpacity(.15),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: active ? Colors.green : Colors.grey[700],
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-
-  Widget _defaultChip() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: Colors.deepOrange.withOpacity(.12),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Text(
-        'افتراضي',
-        style: TextStyle(
-          color: Colors.deepOrange,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-
   void _showEditSheet(BuildContext context) {
-    final codeCtrl = TextEditingController(text: branch.code);
     final nameCtrl = TextEditingController(text: branch.name);
     final addressCtrl = TextEditingController(text: branch.addressText);
-    final phoneCtrl = TextEditingController(text: branch.phone);
     final latCtrl = TextEditingController(
       text: branch.lat != null ? '${branch.lat}' : '',
     );
     final lngCtrl = TextEditingController(
       text: branch.lng != null ? '${branch.lng}' : '',
     );
-    final priceCtrl = TextEditingController(text: '${branch.pricePerKm}');
-    final maxCtrl = TextEditingController(text: '${branch.maxDeliveryKm}');
-
-    final supportsDelivery = branch.supportsDelivery.obs;
-    final supportsPickup = branch.supportsPickup.obs;
     final isActive = branch.isActive.obs;
-    final isDefault = branch.isDefault.obs;
 
     Get.bottomSheet(
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       Directionality(
         textDirection: TextDirection.rtl,
         child: SingleChildScrollView(
-          child: Padding(
+          child: Container(
             padding: EdgeInsets.fromLTRB(
               16,
+              14,
               16,
-              16,
-              MediaQuery.of(context).viewInsets.bottom + 24,
+              MediaQuery.of(context).viewInsets.bottom + 20,
             ),
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'تعديل الفرع',
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 46,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(99),
                   ),
-                  // const SizedBox(height: 14),
-                  // _field(codeCtrl, 'رمز الفرع (code)'),
-                  const SizedBox(height: 12),
-                  _field(nameCtrl, 'اسم الفرع'),
-                  const SizedBox(height: 12),
-                  _field(addressCtrl, 'العنوان'),
-                  const SizedBox(height: 12),
-                  _field(
-                    phoneCtrl,
-                    'الهاتف',
-                    keyboardType: TextInputType.phone,
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _field(
-                          latCtrl,
-                          'lat',
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                            signed: true,
-                          ),
+                ),
+                const SizedBox(height: 14),
+                const Text(
+                  'تعديل الفرع',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 19),
+                ),
+                const SizedBox(height: 18),
+                _field(nameCtrl, 'اسم الفرع'),
+                const SizedBox(height: 12),
+                _field(addressCtrl, 'العنوان', maxLines: 2),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _field(
+                        latCtrl,
+                        'خط العرض',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                          signed: true,
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _field(
-                          lngCtrl,
-                          'lng',
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                            signed: true,
-                          ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _field(
+                        lngCtrl,
+                        'خط الطول',
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                          signed: true,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _field(
-                          priceCtrl,
-                          'سعر الكيلو',
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                        ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: primary,
+                      side: const BorderSide(color: primary),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _field(
-                          maxCtrl,
-                          'أقصى مسافة توصيل',
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Obx(
-                    () => Column(
-                      children: [
-                        SwitchListTile(
-                          value: supportsDelivery.value,
-                          onChanged: (v) => supportsDelivery.value = v,
-                          title: const Text('يدعم التوصيل'),
-                          activeThumbColor: brown,
-                        ),
-                        SwitchListTile(
-                          value: supportsPickup.value,
-                          onChanged: (v) => supportsPickup.value = v,
-                          title: const Text('يدعم الاستلام'),
-                          activeThumbColor: brown,
-                        ),
-                        SwitchListTile(
-                          value: isActive.value,
-                          onChanged: (v) => isActive.value = v,
-                          title: const Text('الفرع نشط'),
-                          activeThumbColor: brown,
-                        ),
-                        // SwitchListTile(
-                        //   value: isDefault.value,
-                        //   onChanged: (v) => isDefault.value = v,
-                        //   title: const Text('فرع افتراضي'),
-                        //   activeColor: brown,
-                        // ),
-                      ],
+                    ),
+                    onPressed: () => controller.pickLocation(
+                      latController: latCtrl,
+                      lngController: lngCtrl,
+                      addressController: addressCtrl,
+                    ),
+                    icon: const Icon(Icons.map_outlined),
+                    label: const Text(
+                      'تعديل الموقع من الخريطة',
+                      style: TextStyle(fontWeight: FontWeight.w800),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: brown,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                const SizedBox(height: 8),
+                Obx(
+                  () => SwitchListTile(
+                    value: isActive.value,
+                    onChanged: (v) => isActive.value = v,
+                    title: const Text('الفرع نشط'),
+                    activeThumbColor: primary,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primary,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      onPressed: () async {
-                        final ok = await controller.updateBranch(
-                          branch,
-                          code: codeCtrl.text,
-                          name: nameCtrl.text,
-                          addressText: addressCtrl.text,
-                          phone: phoneCtrl.text,
-                          latText: latCtrl.text,
-                          lngText: lngCtrl.text,
-                          pricePerKmText: priceCtrl.text,
-                          maxDeliveryKmText: maxCtrl.text,
-                          supportsDeliveryValue: supportsDelivery.value,
-                          supportsPickupValue: supportsPickup.value,
-                          isActiveValue: isActive.value,
-                          isDefaultValue: isDefault.value,
-                        );
-                        if (ok) Get.back();
-                      },
-                      child: const Text(
-                        'حفظ التعديل',
-                        style: TextStyle(color: Colors.white),
+                    ),
+                    onPressed: () async {
+                      final ok = await controller.updateBranch(
+                        branch,
+                        name: nameCtrl.text,
+                        addressText: addressCtrl.text,
+                        latText: latCtrl.text,
+                        lngText: lngCtrl.text,
+                        isActiveValue: isActive.value,
+                      );
+                      if (ok) Get.back();
+                    },
+                    child: const Text(
+                      'حفظ التعديلات',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
       ),
-      backgroundColor: Colors.white,
     );
   }
 
@@ -589,16 +494,19 @@ class _BranchCard extends GetView<BranchesController> {
     TextEditingController ctrl,
     String hint, {
     TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
   }) {
     return TextField(
       controller: ctrl,
       keyboardType: keyboardType,
+      maxLines: maxLines,
+      textAlign: TextAlign.right,
       decoration: InputDecoration(
         hintText: hint,
         filled: true,
-        fillColor: const Color(0xFFF2EFEA),
+        fillColor: const Color(0xFFF8FAFC),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
       ),

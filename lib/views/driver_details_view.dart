@@ -6,8 +6,8 @@ import '../../data/models/order_model.dart';
 class DriverDetailsView extends GetView<DriverDetailsController> {
   const DriverDetailsView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
-  static const pageBg = Color(0xFFF3F0ED);
+  static const primary = Color(0xFFB85A1B);
+  static const pageBg = Color(0xFFF7F7F9);
 
   @override
   Widget build(BuildContext context) {
@@ -74,14 +74,14 @@ class _Header extends StatelessWidget {
   final RxString phoneRx;
   final RxString createdAtRx;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
       decoration: const BoxDecoration(
-        color: brown,
+        color: primary,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(18)),
       ),
       child: Row(
@@ -126,7 +126,7 @@ class _Header extends StatelessWidget {
           const CircleAvatar(
             radius: 22,
             backgroundColor: Color(0xFFEEDFD2),
-            child: Icon(Icons.delivery_dining, color: brown),
+            child: Icon(Icons.delivery_dining, color: primary),
           ),
         ],
       ),
@@ -156,7 +156,7 @@ class _Header extends StatelessWidget {
 //   const _StatsCard({required this.countRx});
 //   final RxInt countRx;
 
-//   static const brown = Color(0xFF6F3F17);
+//   static const primary = Color(0xFFB85A1B);
 
 //   @override
 //   Widget build(BuildContext context) {
@@ -176,7 +176,7 @@ class _Header extends StatelessWidget {
 //         ),
 //         child: Row(
 //           children: [
-//             const Icon(Icons.assignment_ind, color: brown),
+//             const Icon(Icons.assignment_ind, color: primary),
 //             const SizedBox(width: 10),
 //             const Text(
 //               'طلبات مكلّفة',
@@ -186,7 +186,7 @@ class _Header extends StatelessWidget {
 //             Container(
 //               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
 //               decoration: BoxDecoration(
-//                 color: brown,
+//                 color: primary,
 //                 borderRadius: BorderRadius.circular(10),
 //               ),
 //               child: Text(
@@ -209,7 +209,7 @@ class _OrderTile extends StatelessWidget {
   const _OrderTile({required this.order});
   final OrderModel order;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -292,7 +292,7 @@ class _OrderTile extends StatelessWidget {
         return Colors.amber;
       case 'processing':
       case 'assigned':
-        return Colors.orange;
+        return const Color(0xFFB85A1B);
       case 'delivering':
       case 'out_for_delivery':
         return Colors.blue;
@@ -303,7 +303,7 @@ class _OrderTile extends StatelessWidget {
       case 'canceled':
         return Colors.red;
       default:
-        return brown;
+        return primary;
     }
   }
 }

@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mandena_admin/controllers/ReceiverOrdersController.dart';
-import 'package:mandena_admin/controllers/drivers_controller.dart';
 import 'package:mandena_admin/views/admin_order_details_view.dart';
 // واجهة تفاصيل الطلب
 
@@ -12,8 +11,8 @@ class ReceiverOrdersView extends StatelessWidget {
 
   /// ألوان الهوية:
   /// اللون المطلوب: 0xFF6F3F17 (بني دافيء)
-  static const Color kPrimary = Color(0xFF6F3F17);
-  static const Color kBg = Color(0xFFF3F0ED);
+  static const Color kPrimary = Color(0xFFB85A1B);
+  static const Color kBg = Color(0xFFF7F7F9);
   static const Color kCard = Colors.white;
 
   @override
@@ -21,15 +20,6 @@ class ReceiverOrdersView extends StatelessWidget {
     final c = Get.isRegistered<ReceiverOrdersController>()
         ? Get.find<ReceiverOrdersController>()
         : Get.put(ReceiverOrdersController());
-
-    final driversC = Get.isRegistered<DriversController>()
-        ? Get.find<DriversController>()
-        : Get.put(DriversController());
-
-    // تحميل أولي للسائقين
-    if (driversC.drivers.isEmpty && driversC.loading.isFalse) {
-      driversC.fetchDrivers();
-    }
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -61,27 +51,36 @@ class ReceiverOrdersView extends StatelessWidget {
             children: [
               // شريط الفلترة — ظاهر دائماً
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-                child: Row(
-                  children: [
-                    _FilterChip(
-                      label: 'الكل',
-                      isSelected: c.orderFilter.value == 'all',
-                      onTap: () => c.setOrderFilter('all'),
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterChip(
-                      label: 'المعلقة',
-                      isSelected: c.orderFilter.value == 'pending',
-                      onTap: () => c.setOrderFilter('pending'),
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterChip(
-                      label: 'جاري التحضير',
-                      isSelected: c.orderFilter.value == 'processing',
-                      onTap: () => c.setOrderFilter('processing'),
-                    ),
-                  ],
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _FilterChip(
+                        label: 'الكل',
+                        isSelected: c.orderFilter.value == 'all',
+                        onTap: () => c.setOrderFilter('all'),
+                      ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'المعلقة',
+                        isSelected: c.orderFilter.value == 'pending',
+                        onTap: () => c.setOrderFilter('pending'),
+                      ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'جاري التحضير',
+                        isSelected: c.orderFilter.value == 'processing',
+                        onTap: () => c.setOrderFilter('processing'),
+                      ),
+                      const SizedBox(width: 8),
+                      _FilterChip(
+                        label: 'تم التجهيز',
+                        isSelected: c.orderFilter.value == 'ready_pickup',
+                        onTap: () => c.setOrderFilter('ready_pickup'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               Expanded(
@@ -160,36 +159,78 @@ class ReceiverOrdersView extends StatelessWidget {
                                     }
                                   },
                                   title: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        'طلب #${o.id}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 16,
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'طلب #${o.id}',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w900,
+                                                fontSize: 18,
+                                                color: Color(0xFF1F1F1F),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 5),
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  isPickup
+                                                      ? Icons
+                                                            .shopping_bag_outlined
+                                                      : Icons.delivery_dining,
+                                                  size: 14,
+                                                  color: Colors.grey.shade600,
+                                                ),
+                                                const SizedBox(width: 5),
+                                                Text(
+                                                  isPickup ? 'استلام' : 'توصيل',
+                                                  style: TextStyle(
+                                                    color: Colors.grey.shade700,
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Wrap(
+                                              spacing: 8,
+                                              runSpacing: 6,
+                                              children: [
+                                                _Chip(
+                                                  label: badge.label,
+                                                  color: badge.color
+                                                      .withOpacity(.12),
+                                                  borderColor: badge.color
+                                                      .withOpacity(.35),
+                                                  textColor: badge.color,
+                                                ),
+                                                if (cachedItems != null)
+                                                  _Chip(
+                                                    label:
+                                                        '${cachedItems.length} عنصر',
+                                                    color: Colors.black12,
+                                                    textColor: Colors.black87,
+                                                  ),
+                                              ],
+                                            ),
+                                          ],
                                         ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      if (cachedItems != null)
-                                        _Chip(
-                                          label: '${cachedItems.length} عنصر',
-                                          color: Colors.black12,
-                                          textColor: Colors.black87,
-                                        ),
-                                      const Spacer(),
-                                      _Chip(
-                                        label: badge.label,
-                                        color: badge.color.withOpacity(.12),
-                                        borderColor: badge.color.withOpacity(
-                                          .35,
-                                        ),
-                                        textColor: badge.color,
                                       ),
                                     ],
                                   ),
                                   subtitle: Padding(
                                     padding: const EdgeInsets.only(
                                       right: 4,
-                                      top: 6,
+                                      top: 8,
                                     ),
                                     child: Column(
                                       crossAxisAlignment:
@@ -197,6 +238,8 @@ class ReceiverOrdersView extends StatelessWidget {
                                       children: [
                                         if (o.address.isNotEmpty)
                                           Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
                                               const Icon(
                                                 Icons.location_on_outlined,
@@ -207,43 +250,19 @@ class ReceiverOrdersView extends StatelessWidget {
                                               Expanded(
                                                 child: Text(
                                                   o.address,
-                                                  maxLines: 1,
+                                                  maxLines: 2,
                                                   overflow:
                                                       TextOverflow.ellipsis,
                                                   style: const TextStyle(
                                                     color: Colors.black54,
+                                                    height: 1.35,
+                                                    fontWeight: FontWeight.w500,
                                                   ),
                                                 ),
                                               ),
                                             ],
                                           ),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.delivery_dining,
-                                              size: 16,
-                                              color: Colors.grey.shade700,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              isPickup
-                                                  ? 'استلام ذاتي'
-                                                  : 'توصيل',
-                                              style: const TextStyle(
-                                                color: Colors.black54,
-                                              ),
-                                            ),
-                                            const Spacer(),
-                                            Text(
-                                              '${o.total.toStringAsFixed(2)} د.ل',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 15,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
+                                        const SizedBox(height: 8),
                                       ],
                                     ),
                                   ),
@@ -334,85 +353,10 @@ class ReceiverOrdersView extends StatelessWidget {
                                         12,
                                         12,
                                       ),
-                                      child: Row(
+                                      child: Column(
                                         children: [
-                                          if (o.status == 'pending') ...[
-                                            Expanded(
-                                              child: _ActionBtn.outlined(
-                                                label: 'رفض',
-                                                icon: Icons.close_rounded,
-                                                color: Colors.red.shade600,
-                                                onTap: () => c.reject(o.id),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: _ActionBtn.filled(
-                                                label: 'موافقة (تحضير)',
-                                                icon: Icons.check_rounded,
-                                                color: kPrimary,
-                                                onTap: () async {
-                                                  await c.approve(o.id);
-                                                },
-                                              ),
-                                            ),
-                                          ] else if (o.status ==
-                                              'processing') ...[
-                                            if (isPickup)
-                                              Expanded(
-                                                child: _ActionBtn.filled(
-                                                  label: 'تم التسليم',
-                                                  icon: Icons
-                                                      .check_circle_outline_rounded,
-                                                  color: Colors.green.shade600,
-                                                  onTap: () async {
-                                                    await c.markDelivered(o.id);
-                                                  },
-                                                ),
-                                              )
-                                            else
-                                              Expanded(
-                                                child: _ActionBtn.filled(
-                                                  label: 'تكليف سائق',
-                                                  icon: Icons
-                                                      .local_shipping_outlined,
-                                                  color: kPrimary,
-                                                  onTap: () async {
-                                                    final id =
-                                                        await _pickDriverSheet(
-                                                          driversC,
-                                                        );
-                                                    if (id == null) return;
-
-                                                    await driversC
-                                                        .assignOrderToDriver(
-                                                          orderId: o.id,
-                                                          driverId: id,
-                                                        );
-
-                                                    // ✅ إخفاء الطلب مباشرة من "الطلبات الواردة"
-                                                    c.onOrderAssignedExternally(
-                                                      o.id,
-                                                    );
-
-                                                    Get.snackbar(
-                                                      'تم',
-                                                      'تم تكليف السائق للطلب #${o.id}',
-                                                      snackPosition:
-                                                          SnackPosition.BOTTOM,
-                                                    );
-
-                                                    // تحديث من السيرفر للتأكيد
-                                                    await c.fetch(silent: true);
-                                                  },
-                                                ),
-                                              ),
-                                          ],
-
-                                          const SizedBox(width: 10),
-
-                                          // زر تفاصيل الطلب – يظهر دائماً
-                                          Expanded(
+                                          SizedBox(
+                                            width: double.infinity,
                                             child: _ActionBtn.outlined(
                                               label: 'تفاصيل الطلب',
                                               icon: Icons.receipt_long_rounded,
@@ -429,6 +373,79 @@ class ReceiverOrdersView extends StatelessWidget {
                                               },
                                             ),
                                           ),
+                                          if (o.status == 'pending' ||
+                                              o.status == 'processing' ||
+                                              o.status == 'ready_pickup') ...[
+                                            const SizedBox(height: 10),
+                                            if (o.status == 'pending')
+                                              Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: _ActionBtn.outlined(
+                                                      label: 'رفض',
+                                                      icon: Icons.close_rounded,
+                                                      color:
+                                                          Colors.red.shade600,
+                                                      onTap: () =>
+                                                          c.reject(o.id),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 10),
+                                                  Expanded(
+                                                    child: _ActionBtn.filled(
+                                                      label: 'موافقة التحضير',
+                                                      icon: Icons.check_rounded,
+                                                      color: kPrimary,
+                                                      onTap: () async {
+                                                        await c.approve(o.id);
+                                                      },
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                            else if (o.status == 'ready_pickup')
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: _ActionBtn.filled(
+                                                  label: 'تم التسليم',
+                                                  icon: Icons
+                                                      .check_circle_outline_rounded,
+                                                  color: Colors.green.shade600,
+                                                  onTap: () async {
+                                                    await c.markDelivered(o.id);
+                                                  },
+                                                ),
+                                              )
+                                            else
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: _ActionBtn.filled(
+                                                  label: isPickup
+                                                      ? 'تم التجهيز'
+                                                      : 'جهز للتوصيل',
+                                                  icon: isPickup
+                                                      ? Icons
+                                                            .inventory_2_outlined
+                                                      : Icons.route_outlined,
+                                                  color: kPrimary,
+                                                  onTap: () async {
+                                                    if (isPickup) {
+                                                      await c.markReadyPickup(
+                                                        o.id,
+                                                      );
+                                                    } else {
+                                                      await c
+                                                          .markReadyForDriver(
+                                                            o.id,
+                                                          );
+                                                      await c.fetch(
+                                                        silent: true,
+                                                      );
+                                                    }
+                                                  },
+                                                ),
+                                              ),
+                                          ],
                                         ],
                                       ),
                                     ),
@@ -444,62 +461,6 @@ class ReceiverOrdersView extends StatelessWidget {
           );
         }),
       ),
-    );
-  }
-
-  /// BottomSheet لاختيار السائق
-  Future<int?> _pickDriverSheet(DriversController c) async {
-    if (c.loading.isTrue) {
-      await c.fetchDrivers();
-    }
-    return showModalBottomSheet<int>(
-      context: Get.context!,
-      useSafeArea: true,
-      backgroundColor: kCard,
-      showDragHandle: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (_) {
-        return SizedBox(
-          height: Get.height * .6,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Obx(() {
-              if (c.loading.value) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final list = c.drivers;
-              if (list.isEmpty) {
-                return const Center(child: Text('لا يوجد سائقون متاحون'));
-              }
-              return ListView.separated(
-                itemCount: list.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (_, i) {
-                  final d = list[i];
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: kPrimary.withOpacity(.12),
-                      child: Text(
-                        d.name.isNotEmpty ? d.name.characters.first : '?',
-                        style: const TextStyle(color: kPrimary),
-                      ),
-                    ),
-                    title: Text(
-                      d.name,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(d.phone),
-                    trailing: const Icon(Icons.chevron_left_rounded),
-                    onTap: () => Get.back(result: d.id),
-                  );
-                },
-              );
-            }),
-          ),
-        );
-      },
     );
   }
 }
@@ -566,17 +527,25 @@ class _Card extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           color: ReceiverOrdersView.kCard,
+          border: Border.all(
+            color: ReceiverOrdersView.kPrimary.withOpacity(.10),
+          ),
           boxShadow: const [
             BoxShadow(
-              color: Color(0x14000000),
-              blurRadius: 10,
-              offset: Offset(0, 4),
+              color: Color(0x12000000),
+              blurRadius: 18,
+              offset: Offset(0, 8),
+            ),
+            BoxShadow(
+              color: Color(0x0A000000),
+              blurRadius: 4,
+              offset: Offset(0, 2),
             ),
           ],
         ),
-        child: ClipRRect(borderRadius: BorderRadius.circular(18), child: child),
+        child: ClipRRect(borderRadius: BorderRadius.circular(20), child: child),
       ),
     );
   }
@@ -717,9 +686,12 @@ class _ItemRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   it.title,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    height: 1.25,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -769,8 +741,9 @@ class _ActionBtn extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
         foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        minimumSize: const Size.fromHeight(50),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         elevation: 0,
       ),
     );
@@ -790,9 +763,10 @@ class _ActionBtn extends StatelessWidget {
       isFilled: false,
       style: OutlinedButton.styleFrom(
         foregroundColor: color,
+        minimumSize: const Size.fromHeight(50),
         side: BorderSide(color: color),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       ),
     );
   }
@@ -807,16 +781,21 @@ class _ActionBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     final child = Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: MainAxisSize.max,
       children: [
         Icon(icon, size: 18),
         const SizedBox(width: 6),
-        Flexible(
+        Expanded(
           child: Text(
             label,
-            maxLines: 1,
+            textAlign: TextAlign.center,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              height: 1.2,
+            ),
           ),
         ),
       ],
@@ -837,9 +816,11 @@ class _Status {
   static _Status badgeFor(String status) {
     switch (status) {
       case 'pending':
-        return const _Status('معلّق', Colors.orange);
+        return const _Status('معلّق', Color(0xFFB85A1B));
       case 'processing':
         return const _Status('جاري التحضير', ReceiverOrdersView.kPrimary);
+      case 'ready_pickup':
+        return const _Status('تم التجهيز', Colors.green);
       case 'assigned':
         return const _Status('جاري التوصيل', Colors.teal);
       case 'delivered':

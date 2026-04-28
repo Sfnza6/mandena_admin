@@ -6,8 +6,8 @@ import '../../data/models/order_model.dart';
 class UserDetailsView extends GetView<UserDetailsController> {
   const UserDetailsView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
-  static const pageBg = Color(0xFFF3F0ED);
+  static const primary = Color(0xFFB85A1B);
+  static const pageBg = Color(0xFFF7F7F9);
 
   @override
   Widget build(BuildContext context) {
@@ -168,14 +168,14 @@ class _Header extends StatelessWidget {
   final RxBool isBanned;
   final VoidCallback onToggleBan;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
       decoration: const BoxDecoration(
-        color: brown,
+        color: primary,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(18)),
       ),
       child: Row(
@@ -209,7 +209,7 @@ class _Header extends StatelessWidget {
             return ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: banned ? Colors.red : Colors.white,
-                foregroundColor: banned ? Colors.white : brown,
+                foregroundColor: banned ? Colors.white : primary,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -288,7 +288,7 @@ class _StatsCard extends StatelessWidget {
   const _StatsCard({required this.ordersRx});
   final RxList<OrderModel> ordersRx;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -309,7 +309,7 @@ class _StatsCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.receipt_long, color: brown),
+            const Icon(Icons.receipt_long, color: primary),
             const SizedBox(width: 10),
             const Text(
               'سجل الطلبات',
@@ -319,7 +319,7 @@ class _StatsCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: brown,
+                color: primary,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -343,7 +343,7 @@ class _OrderTile extends StatelessWidget {
   final OrderModel order;
   final String statusAr;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -401,7 +401,7 @@ class _OrderTile extends StatelessWidget {
       case 'accepted':
       case 'processing':
       case 'preparing':
-        return Colors.orange;
+        return const Color(0xFFB85A1B);
       case 'assigned':
       case 'onway':
       case 'delivering':
@@ -412,7 +412,7 @@ class _OrderTile extends StatelessWidget {
       case 'rejected':
         return Colors.red;
       default:
-        return brown;
+        return primary;
     }
   }
 }

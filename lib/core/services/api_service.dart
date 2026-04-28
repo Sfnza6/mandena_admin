@@ -33,34 +33,58 @@ class ApiService {
     return null;
   }
 
+  String? _currentToken() {
+    try {
+      if (Get.isRegistered<AuthController>()) {
+        final t = Get.find<AuthController>().token;
+        if (t != null && t.isNotEmpty) return t;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Map<String, String> _appendBranchToQuery(Map<String, String>? query) {
     final branchId = _currentBranchId();
+    final token = _currentToken();
     final merged = <String, String>{...?query};
+
     if (branchId != null && branchId > 0 && !merged.containsKey('branch_id')) {
       merged['branch_id'] = '$branchId';
+    }
+    if (token != null && token.isNotEmpty && !merged.containsKey('token')) {
+      merged['token'] = token;
     }
     return merged;
   }
 
   Map<String, String> _appendBranchToBody(Map<String, String>? body) {
     final branchId = _currentBranchId();
+    final token = _currentToken();
     final merged = <String, String>{...?body};
+
     if (branchId != null && branchId > 0 && !merged.containsKey('branch_id')) {
       merged['branch_id'] = '$branchId';
+    }
+    if (token != null && token.isNotEmpty && !merged.containsKey('token')) {
+      merged['token'] = token;
     }
     return merged;
   }
 
   Map<String, dynamic> _appendBranchToJson(Map<String, dynamic>? body) {
     final branchId = _currentBranchId();
+    final token = _currentToken();
     final merged = <String, dynamic>{...?body};
+
     if (branchId != null && branchId > 0 && !merged.containsKey('branch_id')) {
       merged['branch_id'] = branchId;
+    }
+    if (token != null && token.isNotEmpty && !merged.containsKey('token')) {
+      merged['token'] = token;
     }
     return merged;
   }
 
-  /* ==================== GET ==================== */
   Future<dynamic> get(
     String url, {
     Map<String, String>? query,
@@ -83,7 +107,6 @@ class ApiService {
     return _decode(r, uri, unwrap: true);
   }
 
-  /* ==================== POST: FORM ==================== */
   Future<dynamic> postForm(
     String url,
     Map<String, String> body, {
@@ -113,7 +136,6 @@ class ApiService {
     return _decode(r, uri, unwrap: false);
   }
 
-  /* ==================== POST: JSON ==================== */
   Future<dynamic> postJson(
     String url,
     Map<String, dynamic> body, {
@@ -143,7 +165,6 @@ class ApiService {
     return _decode(r, uri, unwrap: false);
   }
 
-  /* ==================== post() المتوافق ==================== */
   Future<dynamic> post(
     String url, {
     Map<String, String>? body,
@@ -171,7 +192,6 @@ class ApiService {
     );
   }
 
-  /* ==================== Upload (ملف فقط) ==================== */
   Future<dynamic> uploadFile(
     String url, {
     required String filePath,
@@ -196,7 +216,6 @@ class ApiService {
     }
   }
 
-  /* ==================== POST: MULTIPART (حقول + ملف) ==================== */
   Future<dynamic> postMultipart(
     String url, {
     required Map<String, String> fields,
@@ -222,11 +241,13 @@ class ApiService {
     return _decode(resp, uri, unwrap: false);
   }
 
-  /* ==================== داخلي ==================== */
   Map<String, String> _mergedHeaders(Map<String, String>? extra) {
     final branchId = _currentBranchId();
+    final token = _currentToken();
+
     return {
       'Accept': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
       if (branchId != null && branchId > 0) 'X-Branch-Id': '$branchId',
       ...?extra,
     };

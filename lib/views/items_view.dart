@@ -9,8 +9,8 @@ import '../../core/routes/app_routes.dart'; // 👈 جديد
 class ItemsView extends GetView<ItemsController> {
   const ItemsView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
-  static const pageBg = Color(0xFFF3F0ED);
+  static const primary = Color(0xFFB85A1B);
+  static const pageBg = Color(0xFFF7F7F9);
 
   // عدّل هذا ليتوافق مع سيرفرك (نفس BASE_URL في PHP)
   static const String kBaseUrl = 'https://evoranta.ly';
@@ -116,7 +116,7 @@ class ItemsView extends GetView<ItemsController> {
         floatingActionButton: Padding(
           padding: const EdgeInsets.only(right: 16, bottom: 16),
           child: FloatingActionButton(
-            backgroundColor: brown,
+            backgroundColor: primary,
             elevation: 4,
             onPressed: () => _showAddItemSheet(context),
             child: const Icon(Icons.add, color: Colors.white, size: 28),
@@ -127,7 +127,8 @@ class ItemsView extends GetView<ItemsController> {
   }
 
   // ===== BottomSheet (إضافة صنف) =====
-  void _showAddItemSheet(BuildContext context) {
+  void _showAddItemSheet(BuildContext context) async {
+    await controller.fetchCategories(force: true, silentIfNoBranch: true);
     controller.resetForm();
     showModalBottomSheet(
       context: context,
@@ -157,7 +158,8 @@ class ItemsView extends GetView<ItemsController> {
     );
   }
 
-  void _showEditItemSheet(BuildContext context, ItemModel it) {
+  void _showEditItemSheet(BuildContext context, ItemModel it) async {
+    await controller.fetchCategories(force: true, silentIfNoBranch: true);
     controller.prepareEdit(it);
     showModalBottomSheet(
       context: context,
@@ -199,14 +201,14 @@ class _Header extends StatelessWidget {
   const _Header({required this.controller});
   final ItemsController controller;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: const BoxDecoration(
-        color: brown,
+        color: primary,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(18)),
       ),
       child: Row(
@@ -272,7 +274,7 @@ class _ItemCard extends StatelessWidget {
   final double price;
   final VoidCallback onView, onEdit, onDelete;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -303,7 +305,7 @@ class _ItemCard extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: brown,
+                  color: primary,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -360,7 +362,7 @@ class _ItemCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: brown,
+                        color: primary,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                       ),
@@ -451,7 +453,7 @@ class _ItemCard extends StatelessWidget {
     String? tooltip,
     bool danger = false,
   }) {
-    final color = danger ? Colors.red : brown;
+    final color = danger ? Colors.red : primary;
     return Tooltip(
       message: tooltip ?? '',
       child: InkWell(
@@ -478,7 +480,7 @@ class _ItemFormSheet extends StatelessWidget {
   final String title;
   final VoidCallback onSubmit;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -501,7 +503,7 @@ class _ItemFormSheet extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: brown,
+              color: primary,
               borderRadius: BorderRadius.circular(16),
             ),
             alignment: Alignment.center,
@@ -614,7 +616,7 @@ class _ItemFormSheet extends StatelessWidget {
                         width: double.infinity,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: brown,
+                            backgroundColor: primary,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),

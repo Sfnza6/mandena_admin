@@ -87,10 +87,17 @@ class AdminBranchScopeController extends GetxController {
     try {
       if (!silent) loading(true);
       final uri = Uri.parse(Env.url(Env.branchesList));
-      final res = await _client.get(
-        uri,
-        headers: const {'Accept': 'application/json'},
-      );
+      final authHeaders = <String, String>{'Accept': 'application/json'};
+      final token = _auth.token;
+      if (token != null && token.isNotEmpty) {
+        authHeaders['Authorization'] = 'Bearer $token';
+      }
+      final res = await _client.get(uri, headers: authHeaders);
+      if (res.statusCode == 401 || res.statusCode == 403) {
+        branches.clear();
+        selectedBranchId.value = fixedBranchId;
+        return;
+      }
       if (res.statusCode < 200 || res.statusCode >= 300) {
         throw Exception('HTTP ${res.statusCode}');
       }

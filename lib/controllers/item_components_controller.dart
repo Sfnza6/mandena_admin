@@ -1,12 +1,11 @@
-// lib/controllers/item_components_controller.dart
-
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 
 import '../core/services/api_service.dart';
-import '../core/config/env.dart'; // مهم: لاستخدام مسارات Env
+import '../core/config/env.dart';
+import 'admin_branch_scope_controller.dart';
 
 class SimpleRef {
   final int id;
@@ -21,71 +20,69 @@ class SimpleRef {
 
 class ComponentRow {
   final int id;
-  final String name;
-  final RxBool selected; // مفعّل للصنف؟
-  final RxDouble price; // سعر الإضافة (لـ additions فقط)
+  final RxString name;
+  final RxBool selected;
+  final RxDouble price;
 
   ComponentRow({
     required this.id,
-    required this.name,
+    required String name,
     bool selected = false,
     double price = 0.0,
-  }) : selected = RxBool(selected),
+  }) : name = RxString(name),
+       selected = RxBool(selected),
        price = RxDouble(price);
 }
 
 class ItemComponentsController extends GetxController {
   final _api = ApiService();
-
-  // =================== 🔹 Cache في الذاكرة (RAM) 🔹 ===================
-
-  /// كاش للأصناف (اللي في الـ dropdown / شاشة البحث)
-  static List<SimpleRef>? _cacheItems;
-  static DateTime? _cacheItemsAt;
-
-  /// كاش لكل المكوّنات المتاحة (بنخزنها كـ Map بسيط {id,name,price})
-  static List<Map<String, dynamic>>? _cacheComponents;
-  static DateTime? _cacheComponentsAt;
-
-  /// كاش لربط كل صنف بمكوّناته:
-  /// item_id -> { additions: [ {id,price} ], removals: [ {id} ] }
-  static final Map<int, Map<String, dynamic>> _cacheBinding = {};
-  static final Map<int, DateTime> _cacheBindingAt = {};
-
-  /// مدة صلاحية الكاش (للكل)
-  static const Duration _cacheTTL = Duration(seconds: 60);
-
-  bool _isFresh(DateTime? t) {
-    if (t == null) return false;
-    return DateTime.now().difference(t) <= _cacheTTL;
-  }
-
-  // =================== 🔹 Cache دائم (GetStorage) 🔹 ===================
-
-  static const String _boxName = 'admin_cache';
-
-  static const String _kItemsKey = 'item_components_items';
-  static const String _kItemsTimeKey = 'item_components_items_time';
-
-  static const String _kCompsKey = 'item_components_all';
-  static const String _kCompsTimeKey = 'item_components_all_time';
-
-  static const String _kBindingsKey = 'item_components_bindings';
-  static const String _kBindingsTimeKey = 'item_components_bindings_time';
-
-  final GetStorage _box = GetStorage(_boxName);
-
-  // =================== حالة عامّة ===================
+  final _box = GetStorage('admin_cache');
 
   final isBusy = false.obs;
   final isSaving = false.obs;
+  final isWorkingOnComponent = false.obs;
 
-  // الأصناف
   final items = <SimpleRef>[].obs;
   final selectedItem = Rxn<SimpleRef>();
 
-  // 🔍 بحث عن صنف (منتج) عند الاختيار
   final itemSearch = ''.obs;
+  final additions = <ComponentRow>[].obs;
+  final removals = <ComponentRow>[].obs;
+  final searchAdd = ''.obs;
+  final searchRem = ''.obs;
+
+  AdminBranchScopeController? get _scope =>
+      Get.isRegistered<AdminBranchScopeController>()
+      ? Get.find<AdminBranchScopeController>()
+      : null;
+
+  int get _branchId => _scope?.effectiveBranchId ?? 0;
+
+  String get _itemsKey => 'item_components_items_branch_$_branchId';
+  String get _itemsTimeKey => 'item_components_items_time_branch_$_branchId';
+  String get _compsKey => 'item_components_components_branch_$_branchId';
+  String get _compsTimeKey =>
+      'item_components_components_time_branch_$_branchId';
+  String get _bindingsKey => 'item_components_bindings_branch_$_branchId';
+  String get _bindingsTimeKey =>
+      'item_components_bindings_time_branch_$_branchId';
+
+  @override
+  void onInit() {
+    super.onInit();
+    _loadFromCache();
+    loadItemsAndComponents(force: true);
+    if (_scope != null) {
+      ever<int?>(_scope!.selectedBranchId, (_) {
+        selectedItem.value = null;
+        itemSearch.value = '';
+        searchAdd.value = '';
+        searchRem.value = '';
+        _loadFromCache();
+        loadItemsAndComponents(force: true);
+      });
+    }
+  }
 
   List<SimpleRef> get filteredItems {
     final q = itemSearch.value.trim();
@@ -95,487 +92,279 @@ class ItemComponentsController extends GetxController {
         .toList();
   }
 
-  // المكوّنات
-  final additions = <ComponentRow>[].obs; // إضافات مدفوعة
-  final removals = <ComponentRow>[].obs; // مكوّنات قابلة للحذف
-
-  // بحث داخل المكوّنات
-  final searchAdd = ''.obs;
-  final searchRem = ''.obs;
-
-  @override
-  void onInit() {
-    super.onInit();
-
-    // 1️⃣ حمّل أي كاش محفوظ من GetStorage (عرض فوري)
-    _loadFromPersistentCache();
-
-    // 2️⃣ بعدها حمّل من السيرفر مع استخدام كاش RAM
-    loadItemsAndComponents();
+  List<ComponentRow> get filteredAdditions {
+    final q = searchAdd.value.trim();
+    if (q.isEmpty) return additions;
+    return additions.where((e) => e.name.value.contains(q)).toList();
   }
 
-  /* =================== 🔹 تحميل الكاش من GetStorage 🔹 =================== */
-
-  void _loadFromPersistentCache() {
-    try {
-      // ----- الأصناف -----
-      final itemsJson = _box.read(_kItemsKey);
-      final itemsTimeRaw = _box.read(_kItemsTimeKey);
-
-      if (itemsJson != null && itemsTimeRaw != null) {
-        DateTime? t;
-        if (itemsTimeRaw is int) {
-          t = DateTime.fromMillisecondsSinceEpoch(itemsTimeRaw);
-        } else if (itemsTimeRaw is String) {
-          t = DateTime.tryParse(itemsTimeRaw);
-        }
-
-        final List listRaw = itemsJson is String
-            ? (jsonDecode(itemsJson) as List)
-            : (itemsJson as List);
-
-        final list = listRaw
-            .map((e) => SimpleRef.fromJson(Map<String, dynamic>.from(e as Map)))
-            .toList();
-
-        if (list.isNotEmpty) {
-          _cacheItems = List<SimpleRef>.from(list);
-          _cacheItemsAt = t;
-          if (items.isEmpty) {
-            items.assignAll(list);
-          }
-        }
-      }
-
-      // ----- كل المكوّنات -----
-      final compsJson = _box.read(_kCompsKey);
-      final compsTimeRaw = _box.read(_kCompsTimeKey);
-
-      if (compsJson != null && compsTimeRaw != null) {
-        DateTime? t;
-        if (compsTimeRaw is int) {
-          t = DateTime.fromMillisecondsSinceEpoch(compsTimeRaw);
-        } else if (compsTimeRaw is String) {
-          t = DateTime.tryParse(compsTimeRaw);
-        }
-
-        final List listRaw = compsJson is String
-            ? (jsonDecode(compsJson) as List)
-            : (compsJson as List);
-
-        final comps = listRaw
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList();
-
-        if (comps.isNotEmpty) {
-          _cacheComponents = List<Map<String, dynamic>>.from(comps);
-          _cacheComponentsAt = t;
-
-          if (additions.isEmpty && removals.isEmpty) {
-            final base = <ComponentRow>[];
-            for (final m in comps) {
-              final id = int.tryParse('${m['id'] ?? 0}') ?? 0;
-              final name = (m['name'] ?? '').toString();
-              final price = (m['price'] is num)
-                  ? (m['price'] as num).toDouble()
-                  : 0.0;
-              base.add(ComponentRow(id: id, name: name, price: price));
-            }
-
-            additions.assignAll(
-              base
-                  .map(
-                    (e) => ComponentRow(
-                      id: e.id,
-                      name: e.name,
-                      selected: false,
-                      price: e.price.value,
-                    ),
-                  )
-                  .toList(),
-            );
-
-            removals.assignAll(
-              base
-                  .map(
-                    (e) => ComponentRow(
-                      id: e.id,
-                      name: e.name,
-                      selected: false,
-                      price: 0.0,
-                    ),
-                  )
-                  .toList(),
-            );
-          }
-        }
-      }
-
-      // ----- كاش ربط الأصناف بالمكوّنات -----
-      final bindsJson = _box.read(_kBindingsKey);
-      final bindsTimeJson = _box.read(_kBindingsTimeKey);
-
-      if (bindsJson is Map && bindsTimeJson is Map) {
-        final Map<String, dynamic> bMap = Map<String, dynamic>.from(bindsJson);
-        final Map<String, dynamic> tMap = Map<String, dynamic>.from(
-          bindsTimeJson,
-        );
-
-        _cacheBinding.clear();
-        _cacheBindingAt.clear();
-
-        bMap.forEach((key, val) {
-          final id = int.tryParse(key) ?? 0;
-          if (id <= 0) return;
-          if (val is Map) {
-            final data = Map<String, dynamic>.from(val);
-            _cacheBinding[id] = data;
-
-            final traw = tMap[key];
-            DateTime? t;
-            if (traw is int) {
-              t = DateTime.fromMillisecondsSinceEpoch(traw);
-            } else if (traw is String) {
-              t = DateTime.tryParse(traw);
-            }
-            if (t != null) {
-              _cacheBindingAt[id] = t;
-            }
-          }
-        });
-      }
-    } catch (e) {
-      if (kDebugMode) debugPrint('loadFromPersistentCache error: $e');
-    }
+  List<ComponentRow> get filteredRemovals {
+    final q = searchRem.value.trim();
+    if (q.isEmpty) return removals;
+    return removals.where((e) => e.name.value.contains(q)).toList();
   }
 
-  /* =================== 🔹 حفظ الكاش في GetStorage 🔹 =================== */
-
-  void _saveToPersistentCache() {
-    try {
-      // الأصناف
-      if (_cacheItems != null && _cacheItems!.isNotEmpty) {
-        final list = _cacheItems!
-            .map((e) => {'id': e.id, 'name': e.name})
-            .toList();
-        _box.write(_kItemsKey, list);
-        _box.write(
-          _kItemsTimeKey,
-          (_cacheItemsAt ?? DateTime.now()).millisecondsSinceEpoch,
-        );
-      }
-
-      // المكوّنات
-      if (_cacheComponents != null && _cacheComponents!.isNotEmpty) {
-        _box.write(_kCompsKey, _cacheComponents);
-        _box.write(
-          _kCompsTimeKey,
-          (_cacheComponentsAt ?? DateTime.now()).millisecondsSinceEpoch,
-        );
-      }
-
-      // الربط لكل صنف
-      if (_cacheBinding.isNotEmpty) {
-        final out = <String, dynamic>{};
-        final outTime = <String, dynamic>{};
-
-        _cacheBinding.forEach((id, data) {
-          out['$id'] = data;
-        });
-        _cacheBindingAt.forEach((id, t) {
-          outTime['$id'] = t.millisecondsSinceEpoch;
-        });
-
-        _box.write(_kBindingsKey, out);
-        _box.write(_kBindingsTimeKey, outTime);
-      }
-    } catch (e) {
-      if (kDebugMode) debugPrint('saveToPersistentCache error: $e');
-    }
-  }
-
-  /* =================== تحميل الأصناف + المكوّنات =================== */
-
-  Future<void> loadItemsAndComponents() async {
-    isBusy.value = true;
-    try {
-      // 1️⃣ جرّب كاش RAM أولاً لو موجود وحديث
-      final now = DateTime.now();
-      final itemsFresh = _cacheItems != null && _isFresh(_cacheItemsAt);
-      final compsFresh =
-          _cacheComponents != null && _isFresh(_cacheComponentsAt);
-
-      if (itemsFresh && compsFresh) {
-        // الأصناف
-        items.assignAll(_cacheItems!);
-
-        // المكوّنات
-        final base = <ComponentRow>[];
-        for (final m in _cacheComponents!) {
-          final id = int.tryParse('${m['id'] ?? 0}') ?? 0;
-          final name = (m['name'] ?? '').toString();
-          final price = (m['price'] is num)
-              ? (m['price'] as num).toDouble()
-              : 0.0;
-          base.add(ComponentRow(id: id, name: name, price: price));
-        }
-
-        additions.assignAll(
-          base
-              .map(
-                (e) => ComponentRow(
-                  id: e.id,
-                  name: e.name,
-                  selected: false,
-                  price: e.price.value,
-                ),
-              )
-              .toList(),
-        );
-
-        removals.assignAll(
-          base
-              .map(
-                (e) => ComponentRow(
-                  id: e.id,
-                  name: e.name,
-                  selected: false,
-                  price: 0.0,
-                ),
-              )
-              .toList(),
-        );
-
-        // لا داعي للـ API
-        return;
-      }
-
-      // 2️⃣ لو الكاش قديم/مش موجود → حمل من السيرفر
-      // الأصناف
-      final rItems = await _api.get(Env.itemsSimpleList);
-      if (rItems is Map && rItems['ok'] == true) {
-        final list = (rItems['items'] as List? ?? const [])
-            .map((e) => SimpleRef.fromJson(Map<String, dynamic>.from(e as Map)))
-            .toList();
-        items.assignAll(list);
-
-        _cacheItems = List<SimpleRef>.from(list);
-        _cacheItemsAt = now;
-      }
-
-      // المكوّنات
-      final rComps = await _api.get(Env.componentsList);
-      final base = <ComponentRow>[];
-      final rawList = <Map<String, dynamic>>[];
-
-      if (rComps is Map && rComps['ok'] == true) {
-        final comps = (rComps['components'] as List? ?? const []);
-        for (final raw in comps) {
-          final m = Map<String, dynamic>.from(raw as Map);
-          final id = int.tryParse('${m['id'] ?? 0}') ?? 0;
-          final name = (m['name'] ?? m['name_c'] ?? '').toString();
-          final price =
-              double.tryParse('${m['price'] ?? m['pri'] ?? 0}') ?? 0.0;
-
-          base.add(ComponentRow(id: id, name: name, price: price));
-
-          rawList.add({'id': id, 'name': name, 'price': price});
-        }
-      }
-
-      additions.assignAll(
-        base
-            .map(
-              (e) => ComponentRow(
-                id: e.id,
-                name: e.name,
-                selected: false,
-                price: e.price.value,
-              ),
-            )
-            .toList(),
-      );
-
-      removals.assignAll(
-        base
-            .map(
-              (e) => ComponentRow(
-                id: e.id,
-                name: e.name,
-                selected: false,
-                price: 0.0,
-              ),
-            )
-            .toList(),
-      );
-
-      _cacheComponents = rawList;
-      _cacheComponentsAt = now;
-
-      // 3️⃣ بعد التحديث من السيرفر → خزّن في GetStorage
-      _saveToPersistentCache();
-    } catch (e) {
-      if (kDebugMode) debugPrint('loadItemsAndComponents error: $e');
-      Get.snackbar('خطأ', 'تعذّر تحميل البيانات');
-    } finally {
-      isBusy.value = false;
-    }
-  }
-
-  /// عند تغيير الصنف: إعادة تحميل الربط الحالي له
-  Future<void> loadItemBinding(SimpleRef item, {bool force = false}) async {
-    selectedItem.value = item;
-
-    // إعادة الضبط
+  void _resetSelections() {
     for (final a in additions) {
       a.selected.value = false;
     }
     for (final r in removals) {
       r.selected.value = false;
     }
+  }
 
-    if (item.id == 0) return;
+  void _buildComponentsFromRaw(List<Map<String, dynamic>> raw) {
+    additions.assignAll(
+      raw
+          .map(
+            (m) => ComponentRow(
+              id: int.tryParse('${m['id'] ?? 0}') ?? 0,
+              name: (m['name'] ?? '').toString(),
+              price: double.tryParse('${m['price'] ?? 0}') ?? 0.0,
+            ),
+          )
+          .toList(),
+    );
 
-    // 1️⃣ جرّب كاش الربط أولاً
-    if (!force &&
-        _cacheBinding.containsKey(item.id) &&
-        _isFresh(_cacheBindingAt[item.id])) {
-      final data = _cacheBinding[item.id]!;
-      final adds = (data['additions'] as List? ?? const []);
-      final rems = (data['removals'] as List? ?? const []);
+    removals.assignAll(
+      raw
+          .map(
+            (m) => ComponentRow(
+              id: int.tryParse('${m['id'] ?? 0}') ?? 0,
+              name: (m['name'] ?? '').toString(),
+              price: double.tryParse('${m['price'] ?? 0}') ?? 0.0,
+            ),
+          )
+          .toList(),
+    );
+  }
 
-      // عيّن الإضافات + السعر
-      for (final a in additions) {
-        Map<String, dynamic>? found;
-        for (final raw in adds) {
-          final m = Map<String, dynamic>.from(raw as Map);
-          final id = int.tryParse('${m['id'] ?? 0}') ?? 0;
-          if (id == a.id) {
-            found = m;
-            break;
-          }
-        }
-        if (found != null) {
-          a.selected.value = true;
-          final p =
-              double.tryParse(
-                '${found['price'] ?? found['pri'] ?? found['pri_override'] ?? a.price.value}',
-              ) ??
-              a.price.value;
-          a.price.value = p;
-        }
+  void _loadFromCache() {
+    try {
+      final itemsRaw = _box.read(_itemsKey);
+      if (itemsRaw is List) {
+        items.assignAll(
+          itemsRaw
+              .map(
+                (e) => SimpleRef.fromJson(Map<String, dynamic>.from(e as Map)),
+              )
+              .toList(),
+        );
+      } else {
+        items.clear();
       }
 
-      // عيّن المحذوفات
-      for (final rr in removals) {
-        final exists = rems.any((raw) {
-          final m = Map<String, dynamic>.from(raw as Map);
-          final id = int.tryParse('${m['id'] ?? 0}') ?? 0;
-          return id == rr.id;
-        });
-        rr.selected.value = exists;
+      final compsRaw = _box.read(_compsKey);
+      if (compsRaw is List) {
+        final raw = compsRaw
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+        _buildComponentsFromRaw(raw);
+      } else {
+        additions.clear();
+        removals.clear();
       }
+    } catch (e) {
+      if (kDebugMode) debugPrint('item comps cache load error: $e');
+    }
+  }
 
+  void _saveItemsCache(List<SimpleRef> list) {
+    _box.write(
+      _itemsKey,
+      list.map((e) => {'id': e.id, 'name': e.name}).toList(),
+    );
+    _box.write(_itemsTimeKey, DateTime.now().millisecondsSinceEpoch);
+  }
+
+  void _saveComponentsCache(List<Map<String, dynamic>> list) {
+    _box.write(_compsKey, list);
+    _box.write(_compsTimeKey, DateTime.now().millisecondsSinceEpoch);
+  }
+
+  void _refreshComponentsCacheFromMemory() {
+    _saveComponentsCache([
+      ...additions.map(
+        (e) => {'id': e.id, 'name': e.name.value, 'price': e.price.value},
+      ),
+    ]);
+  }
+
+  Map<String, dynamic> _readBindingsCache() {
+    final raw = _box.read(_bindingsKey);
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    return <String, dynamic>{};
+  }
+
+  void _writeBindingCache(int itemId, List adds, List rems) {
+    final map = _readBindingsCache();
+    map['$itemId'] = {'additions': adds, 'removals': rems};
+    _box.write(_bindingsKey, map);
+
+    final timeMapRaw = _box.read(_bindingsTimeKey);
+    final timeMap = timeMapRaw is Map
+        ? Map<String, dynamic>.from(timeMapRaw)
+        : <String, dynamic>{};
+    timeMap['$itemId'] = DateTime.now().millisecondsSinceEpoch;
+    _box.write(_bindingsTimeKey, timeMap);
+  }
+
+  Map<String, dynamic>? _getBindingCache(int itemId) {
+    final map = _readBindingsCache();
+    final data = map['$itemId'];
+    if (data is Map) return Map<String, dynamic>.from(data);
+    return null;
+  }
+
+  Map<String, dynamic>? _findById(List list, int id) {
+    for (final e in list) {
+      final m = Map<String, dynamic>.from(e as Map);
+      final mid = int.tryParse('${m['id'] ?? 0}') ?? 0;
+      if (mid == id) return m;
+    }
+    return null;
+  }
+
+  bool _containsId(List list, int id) {
+    for (final e in list) {
+      final m = Map<String, dynamic>.from(e as Map);
+      final mid = int.tryParse('${m['id'] ?? 0}') ?? 0;
+      if (mid == id) return true;
+    }
+    return false;
+  }
+
+  void _scrubDeletedComponentFromBindingCache(int componentId) {
+    final map = _readBindingsCache();
+    final patched = <String, dynamic>{};
+
+    map.forEach((key, value) {
+      if (value is! Map) return;
+      final itemMap = Map<String, dynamic>.from(value);
+      final adds = (itemMap['additions'] as List? ?? const []).where((e) {
+        final m = Map<String, dynamic>.from(e as Map);
+        return (int.tryParse('${m['id'] ?? 0}') ?? 0) != componentId;
+      }).toList();
+      final rems = (itemMap['removals'] as List? ?? const []).where((e) {
+        final m = Map<String, dynamic>.from(e as Map);
+        return (int.tryParse('${m['id'] ?? 0}') ?? 0) != componentId;
+      }).toList();
+      patched[key] = {'additions': adds, 'removals': rems};
+    });
+
+    _box.write(_bindingsKey, patched);
+  }
+
+  Future<void> loadItemsAndComponents({bool force = false}) async {
+    if (_branchId <= 0) {
+      items.clear();
+      additions.clear();
+      removals.clear();
       return;
     }
 
-    // 2️⃣ لو مافيش كاش أو قديم → جيب من السيرفر وحدث الكاش
     isBusy.value = true;
     try {
-      Map<String, dynamic>? r;
-
-      // نحاول GET مع query
-      final g = await _api.get(
-        Env.itemComponentsGet,
-        query: {'item_id': '${item.id}'},
-      );
-      if (g is Map<String, dynamic>) r = g;
-
-      // إن فشل GET نجرب POST فورم (توافقًا مع سيرفرات لا تدعم query)
-      if (r == null || r['ok'] != true) {
-        final p = await _api.post(
-          Env.itemComponentsGet,
-          body: {'item_id': '${item.id}'},
-        );
-        if (p is Map<String, dynamic>) r = p;
+      final rItems = await _api.get(Env.itemsSimpleList);
+      if (rItems is Map && rItems['ok'] == true) {
+        final list = (rItems['items'] as List? ?? const [])
+            .map((e) => SimpleRef.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList();
+        items.assignAll(list);
+        _saveItemsCache(list);
       }
 
-      if (r != null && r['ok'] == true) {
-        final adds = (r['additions'] as List? ?? const []);
-        final rems = (r['removals'] as List? ?? const []);
-
-        // عيّن الإضافات + السعر
-        for (final a in additions) {
-          Map<String, dynamic>? found;
-          for (final raw in adds) {
-            final m = Map<String, dynamic>.from(raw as Map);
-            final id = int.tryParse('${m['id'] ?? 0}') ?? 0;
-            if (id == a.id) {
-              found = m;
-              break;
-            }
-          }
-          if (found != null) {
-            a.selected.value = true;
-            // pri أو price أو pri_override (لدعم سكربت قديم)
-            final p =
-                double.tryParse(
-                  '${found['price'] ?? found['pri'] ?? found['pri_override'] ?? a.price.value}',
-                ) ??
-                a.price.value;
-            a.price.value = p;
-          }
-        }
-
-        // عيّن المحذوفات
-        for (final rr in removals) {
-          final exists = rems.any((raw) {
-            final m = Map<String, dynamic>.from(raw as Map);
-            final id = int.tryParse('${m['id'] ?? 0}') ?? 0;
-            return id == rr.id;
+      final rComps = await _api.get(Env.componentsList);
+      final raw = <Map<String, dynamic>>[];
+      if (rComps is Map && rComps['ok'] == true) {
+        for (final e in (rComps['components'] as List? ?? const [])) {
+          final m = Map<String, dynamic>.from(e as Map);
+          raw.add({
+            'id': int.tryParse('${m['id'] ?? 0}') ?? 0,
+            'name': (m['name'] ?? m['name_c'] ?? '').toString(),
+            'price': double.tryParse('${m['price'] ?? m['pri'] ?? 0}') ?? 0.0,
           });
-          rr.selected.value = exists;
         }
-
-        // 🔹 حدّث كاش الربط لهذا الصنف + خزّنه
-        _cacheBinding[item.id] = {
-          'additions': adds
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList(),
-          'removals': rems
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList(),
-        };
-        _cacheBindingAt[item.id] = DateTime.now();
-        _saveToPersistentCache();
       }
+      _buildComponentsFromRaw(raw);
+      _saveComponentsCache(raw);
     } catch (e) {
-      if (kDebugMode) debugPrint('loadItemBinding error: $e');
-      Get.snackbar('خطأ', 'تعذّر تحميل ربط هذا الصنف');
+      if (kDebugMode) debugPrint('loadItemsAndComponents error: $e');
+      Get.snackbar('خطأ', 'تعذّر تحميل الأصناف والمكوّنات');
     } finally {
       isBusy.value = false;
     }
   }
 
-  List<ComponentRow> get filteredAdditions {
-    final q = searchAdd.value.trim();
-    if (q.isEmpty) return additions;
-    return additions.where((e) => e.name.contains(q)).toList();
+  Future<void> loadItemBinding(SimpleRef item, {bool force = false}) async {
+    selectedItem.value = item;
+    _resetSelections();
+    if (item.id <= 0 || _branchId <= 0) return;
+
+    if (!force) {
+      final cached = _getBindingCache(item.id);
+      if (cached != null) {
+        _applyBinding(
+          cached['additions'] as List? ?? const [],
+          cached['removals'] as List? ?? const [],
+        );
+        return;
+      }
+    }
+
+    isBusy.value = true;
+    try {
+      dynamic r = await _api.get(
+        Env.itemComponentsGet,
+        query: {'item_id': '${item.id}'},
+      );
+      if (r is! Map || r['ok'] != true) {
+        r = await _api.post(
+          Env.itemComponentsGet,
+          body: {'item_id': '${item.id}'},
+        );
+      }
+      if (r is Map && r['ok'] == true) {
+        final adds = (r['additions'] as List? ?? const []);
+        final rems = (r['removals'] as List? ?? const []);
+        _applyBinding(adds, rems);
+        _writeBindingCache(item.id, adds, rems);
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('loadItemBinding error: $e');
+      Get.snackbar('خطأ', 'تعذّر تحميل مكونات هذا الصنف');
+    } finally {
+      isBusy.value = false;
+    }
   }
 
-  List<ComponentRow> get filteredRemovals {
-    final q = searchRem.value.trim();
-    if (q.isEmpty) return removals;
-    return removals.where((e) => e.name.contains(q)).toList();
+  void _applyBinding(List adds, List rems) {
+    for (final a in additions) {
+      final found = _findById(adds, a.id);
+      if (found != null) {
+        a.selected.value = true;
+        a.price.value =
+            double.tryParse(
+              '${found['price'] ?? found['pri'] ?? a.price.value}',
+            ) ??
+            a.price.value;
+      } else {
+        a.selected.value = false;
+      }
+    }
+
+    for (final r in removals) {
+      r.selected.value = _containsId(rems, r.id);
+    }
   }
 
-  /// حفظ ربط الصنف بالمكوّنات
   Future<void> save() async {
     final sel = selectedItem.value;
-    if (sel == null) {
-      Get.snackbar('تنبيه', 'اختر صنفًا أولاً');
+    if (sel == null || _branchId <= 0) {
+      Get.snackbar('تنبيه', 'اختر الفرع والصنف أولاً');
       return;
     }
+
     isSaving.value = true;
     try {
       final adds = additions
@@ -598,15 +387,8 @@ class ItemComponentsController extends GetxController {
       );
 
       if (res is Map && res['ok'] == true) {
-        // 🔹 حدّث كاش الربط للصنف الحالي
-        _cacheBinding[sel.id] = {
-          'additions': adds.map((e) => Map<String, dynamic>.from(e)).toList(),
-          'removals': rems.map((e) => Map<String, dynamic>.from(e)).toList(),
-        };
-        _cacheBindingAt[sel.id] = DateTime.now();
-        _saveToPersistentCache();
-
-        Get.snackbar('تم', 'تم حفظ الربط بنجاح');
+        _writeBindingCache(sel.id, adds, rems);
+        Get.snackbar('تم', 'تم حفظ الإضافات والإزالات للصنف');
       } else {
         Get.snackbar(
           'خطأ',
@@ -616,46 +398,52 @@ class ItemComponentsController extends GetxController {
         );
       }
     } catch (e) {
-      if (kDebugMode) debugPrint('save error: $e');
+      if (kDebugMode) debugPrint('save item components error: $e');
       Get.snackbar('خطأ', 'فشل الاتصال بالسيرفر');
     } finally {
       isSaving.value = false;
     }
   }
 
-  /// إضافة مكوّن جديد (زر "مكوّن جديد +")
   Future<bool> addNewComponent({
     required String name,
     required double price,
   }) async {
+    if (_branchId <= 0) {
+      Get.snackbar('تنبيه', 'اختر الفرع أولاً');
+      return false;
+    }
+    isWorkingOnComponent.value = true;
     try {
       final res = await _api.post(
         Env.componentAdd,
-        body: {
-          'name': name,
-          'price': price.toString(), // كـ String متوافق مع POST form
-        },
+        body: {'name': name, 'price': price.toString()},
       );
 
       if (res is Map && res['ok'] == true) {
         final id = int.tryParse('${res['id'] ?? 0}') ?? 0;
+        final actualName = (res['name'] ?? name).toString();
+        final actualPrice =
+            double.tryParse('${res['price'] ?? price}') ?? price;
 
-        // أضفه محليًا للقائمتين
-        final row = ComponentRow(id: id, name: name, price: price);
-        additions.add(row);
-        removals.add(ComponentRow(id: id, name: name, price: 0.0));
+        final existingAdd = additions.where((e) => e.id == id).toList();
+        if (existingAdd.isEmpty) {
+          additions.add(
+            ComponentRow(id: id, name: actualName, price: actualPrice),
+          );
+        }
 
-        // 🔹 حدّث كاش المكوّنات + التخزين الدائم
-        final m = {'id': id, 'name': name, 'price': price};
-        _cacheComponents ??= <Map<String, dynamic>>[];
-        _cacheComponents!.add(m);
-        _cacheComponentsAt = DateTime.now();
-        _saveToPersistentCache();
+        final existingRem = removals.where((e) => e.id == id).toList();
+        if (existingRem.isEmpty) {
+          removals.add(
+            ComponentRow(id: id, name: actualName, price: actualPrice),
+          );
+        }
 
+        _refreshComponentsCacheFromMemory();
         return true;
       }
 
-      // في حال رجع خطأ برسالة من السيرفر
       if (res is Map && res['message'] != null) {
         Get.snackbar('خطأ', '${res['message']}');
       }
@@ -664,6 +452,92 @@ class ItemComponentsController extends GetxController {
       if (kDebugMode) debugPrint('addNewComponent error: $e');
       Get.snackbar('خطأ', 'تعذّرت إضافة المكوّن');
       return false;
+    } finally {
+      isWorkingOnComponent.value = false;
+    }
+  }
+
+  Future<bool> updateComponent({
+    required int id,
+    required String name,
+    required double price,
+  }) async {
+    if (_branchId <= 0 || id <= 0) {
+      Get.snackbar('تنبيه', 'اختر الفرع والمكوّن أولاً');
+      return false;
+    }
+
+    isWorkingOnComponent.value = true;
+    try {
+      final res = await _api.post(
+        Env.componentUpdate,
+        body: {'id': '$id', 'name': name.trim(), 'price': price.toString()},
+      );
+
+      if (res is Map && res['ok'] == true) {
+        final newName = (res['name'] ?? name).toString();
+        final newPrice = double.tryParse('${res['price'] ?? price}') ?? price;
+
+        for (final row in additions.where((e) => e.id == id)) {
+          row.name.value = newName;
+          row.price.value = newPrice;
+        }
+        for (final row in removals.where((e) => e.id == id)) {
+          row.name.value = newName;
+          row.price.value = newPrice;
+        }
+
+        _refreshComponentsCacheFromMemory();
+        return true;
+      }
+
+      Get.snackbar(
+        'خطأ',
+        (res is Map && res['message'] != null)
+            ? '${res['message']}'
+            : 'تعذر تعديل المكوّن',
+      );
+      return false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('updateComponent error: $e');
+      Get.snackbar('خطأ', 'تعذّر تعديل المكوّن');
+      return false;
+    } finally {
+      isWorkingOnComponent.value = false;
+    }
+  }
+
+  Future<bool> deleteComponent(int id) async {
+    if (_branchId <= 0 || id <= 0) {
+      Get.snackbar('تنبيه', 'اختر الفرع والمكوّن أولاً');
+      return false;
+    }
+
+    isWorkingOnComponent.value = true;
+    try {
+      final res = await _api.post(Env.componentDelete, body: {'id': '$id'});
+
+      if (res is Map && res['ok'] == true) {
+        additions.removeWhere((e) => e.id == id);
+        removals.removeWhere((e) => e.id == id);
+        _scrubDeletedComponentFromBindingCache(id);
+        _refreshComponentsCacheFromMemory();
+        return true;
+      }
+
+      Get.snackbar(
+        'خطأ',
+        (res is Map && res['message'] != null)
+            ? '${res['message']}'
+            : 'تعذر حذف المكوّن',
+      );
+      return false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('deleteComponent error: $e');
+      Get.snackbar('خطأ', 'تعذّر حذف المكوّن');
+      return false;
+    } finally {
+      isWorkingOnComponent.value = false;
     }
   }
 }

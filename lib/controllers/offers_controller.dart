@@ -5,6 +5,7 @@ import '../core/services/api_service.dart';
 import '../core/config/env.dart';
 import '../data/models/offer_model.dart';
 import 'admin_branch_scope_controller.dart';
+import 'AuthController.dart';
 
 class OffersController extends GetxController {
   final _api = ApiService();
@@ -37,13 +38,15 @@ class OffersController extends GetxController {
     offers.clear();
   }
 
-  bool _ensureBranchSelected() {
+  bool _ensureBranchSelected({bool showMessage = true}) {
     if (_branchScope.effectiveBranchId != null) return true;
-    Get.snackbar(
-      'تنبيه',
-      'اختر الفرع أولاً',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    if (showMessage) {
+      Get.snackbar(
+        'تنبيه',
+        'اختر الفرع أولاً',
+        snackPosition: SnackPosition.BOTTOM,
+      );
+    }
     return false;
   }
 
@@ -58,7 +61,7 @@ class OffersController extends GetxController {
   }
 
   void _updateCacheFromList(List<OfferModel> list) async {
-    if (!_ensureBranchSelected()) return;
+    if (!_ensureBranchSelected(showMessage: false)) return;
     final bid = _branchId!;
     _cacheOffersByBranch[bid] = List<OfferModel>.from(list);
     _cacheAtByBranch[bid] = DateTime.now();
@@ -75,14 +78,14 @@ class OffersController extends GetxController {
   }
 
   Future<void> _loadCacheFromStorage() async {
-    if (!_ensureBranchSelected()) return;
+    if (!_ensureBranchSelected(showMessage: false)) return;
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_storageKeyScoped);
     final timeStr = prefs.getString(_storageTimeScoped);
 
     if (raw == null || timeStr == null) return;
 
-    if (!_ensureBranchSelected()) return;
+    if (!_ensureBranchSelected(showMessage: false)) return;
     try {
       final t = DateTime.tryParse(timeStr);
       if (t == null) return;
@@ -101,6 +104,19 @@ class OffersController extends GetxController {
 
       offers.assignAll(parsed);
     } catch (_) {}
+  }
+
+  Future<void> refreshLive() async {
+    final bid = _branchId;
+    if (bid != null) {
+      _cacheOffersByBranch.remove(bid);
+      _cacheAtByBranch.remove(bid);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_storageKeyScoped);
+      await prefs.remove(_storageTimeScoped);
+    }
+    await fetchOffers(force: true);
+    offers.refresh();
   }
 
   @override
@@ -163,6 +179,15 @@ class OffersController extends GetxController {
 
   /* =================== جلب العروض =================== */
   Future<void> fetchOffers({bool force = false}) async {
+    final auth = Get.find<AuthController>();
+    final branchId = _branchScope.effectiveBranchId;
+
+    if (!auth.isLoggedIn || branchId == null || branchId <= 0) {
+      offers.clear();
+      loading(false);
+      return;
+    }
+
     try {
       if (!force && _hasValidCache) {
         offers.assignAll(_cacheOffersByBranch[_branchId!]!);
@@ -228,14 +253,14 @@ class OffersController extends GetxController {
 
   /* =================== إضافة/تعديل/حذف =================== */
 
-  Future<void> addOffer({
+  Future<bool> addOffer({
     required String title,
     double? price,
     String? imagePath,
     String? imageUrl,
     String? description,
   }) async {
-    if (!_ensureBranchSelected()) return;
+    if (!_ensureBranchSelected()) return false;
     try {
       dynamic res;
       if ((imagePath ?? '').isNotEmpty) {
@@ -261,19 +286,20 @@ class OffersController extends GetxController {
       final j = _safeDecode(res);
       if ((j != null && ((j['ok'] == true) || (j['status'] == 'success'))) ||
           (j == null && _looksSuccess(res))) {
-        await fetchOffers(force: true);
-        Get.back();
-        return;
+        await refreshLive();
+        return true;
       }
 
       final msg = j?['message']?.toString() ?? 'تعذر إضافة العرض';
       Get.snackbar('خطأ', msg, snackPosition: SnackPosition.BOTTOM);
+      return false;
     } catch (e) {
       Get.snackbar(
         'خطأ',
         'تعذر إضافة العرض',
         snackPosition: SnackPosition.BOTTOM,
       );
+      return false;
     }
   }
 
@@ -304,7 +330,7 @@ class OffersController extends GetxController {
       final j = _safeDecode(res);
       if ((j != null && ((j['ok'] == true) || (j['status'] == 'success'))) ||
           (j == null && _looksSuccess(res))) {
-        await fetchOffers(force: true);
+        await refreshLive();
         Get.back();
       } else {
         final msg = j?['message']?.toString() ?? 'تعذر تعديل العرض';
@@ -331,14 +357,7 @@ class OffersController extends GetxController {
 
       if (ok) {
         offers.removeWhere((o) => o.id == id);
-
-        final bid = _branchId;
-        if (bid != null && _cacheOffersByBranch[bid] != null) {
-          _cacheOffersByBranch[bid] = _cacheOffersByBranch[bid]!
-              .where((o) => o.id != id)
-              .toList(growable: false);
-          _cacheAtByBranch[bid] = DateTime.now();
-        }
+        await refreshLive();
       } else {
         final msg = j?['message']?.toString() ?? 'تعذر حذف العرض';
         Get.snackbar('خطأ', msg, snackPosition: SnackPosition.BOTTOM);

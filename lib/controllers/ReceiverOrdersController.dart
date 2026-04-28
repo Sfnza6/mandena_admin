@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import '../core/services/api_service.dart';
 import '../core/config/env.dart';
 import '../core/utils/snack_utils.dart';
+import 'AuthController.dart';
 
 class ReceiverOrder {
   final int id;
@@ -12,6 +13,7 @@ class ReceiverOrder {
   final String address;
   final int paymentMethod;
   final double total;
+  final double deliveryFee;
   String status;
   final String statusOrder;
   final String createdAt;
@@ -22,23 +24,35 @@ class ReceiverOrder {
     required this.address,
     required this.paymentMethod,
     required this.total,
+    required this.deliveryFee,
     required this.status,
     required this.statusOrder,
     required this.createdAt,
   });
 
-  factory ReceiverOrder.fromJson(Map<String, dynamic> j) => ReceiverOrder(
-        id: int.tryParse('${j['id']}') ?? 0,
-        userId: int.tryParse('${j['user_id']}') ?? 0,
-        address: (j['address'] ?? j['address_text'] ?? '').toString(),
-        paymentMethod: int.tryParse('${j['payment_method'] ?? 0}') ?? 0,
-        total: (j['total'] is num)
-            ? (j['total'] as num).toDouble()
-            : (double.tryParse('${j['total'] ?? 0}') ?? 0.0),
-        status: (j['status'] ?? j['normalized_status'] ?? '').toString(),
-        statusOrder: (j['status_order'] ?? '').toString(),
-        createdAt: (j['created_at'] ?? '').toString(),
-      );
+  factory ReceiverOrder.fromJson(Map<String, dynamic> j) {
+    double toDouble(dynamic v) {
+      if (v is num) return v.toDouble();
+      return double.tryParse('${v ?? 0}'.replaceAll(',', '').trim()) ?? 0.0;
+    }
+
+    return ReceiverOrder(
+      id: int.tryParse('${j['id']}') ?? 0,
+      userId: int.tryParse('${j['user_id']}') ?? 0,
+      address: (j['address'] ?? j['address_text'] ?? '').toString(),
+      paymentMethod: int.tryParse('${j['payment_method'] ?? 0}') ?? 0,
+      total: toDouble(j['total']),
+      deliveryFee: toDouble(
+        j['delivery_fee'] ??
+            j['deliveryFee'] ??
+            j['delivery_price'] ??
+            j['shipping_fee'],
+      ),
+      status: (j['status'] ?? j['normalized_status'] ?? '').toString(),
+      statusOrder: (j['status_order'] ?? '').toString(),
+      createdAt: (j['created_at'] ?? '').toString(),
+    );
+  }
 }
 
 class ReceiverOrderItem {
@@ -72,8 +86,8 @@ class ReceiverOrderItem {
     final unit = (j['unit_price'] is num)
         ? (j['unit_price'] as num).toDouble()
         : (j['price'] is num)
-            ? (j['price'] as num).toDouble()
-            : (double.tryParse('${j['unit_price'] ?? j['price'] ?? 0}') ?? 0.0);
+        ? (j['price'] as num).toDouble()
+        : (double.tryParse('${j['unit_price'] ?? j['price'] ?? 0}') ?? 0.0);
     final line = (j['line_total'] is num)
         ? (j['line_total'] as num).toDouble()
         : (double.tryParse('${j['line_total'] ?? 0}') ?? 0.0);
@@ -109,11 +123,14 @@ class ReceiverOrdersController extends GetxController
   final loading = false.obs;
   final orders = <ReceiverOrder>[].obs;
 
-  /// فلتر العرض: 'all' | 'pending' | 'processing'
+  /// فلتر العرض: 'all' | 'pending' | 'processing' | 'ready_pickup'
   final orderFilter = 'all'.obs;
 
   void setOrderFilter(String value) {
-    if (value == 'all' || value == 'pending' || value == 'processing') {
+    if (value == 'all' ||
+        value == 'pending' ||
+        value == 'processing' ||
+        value == 'ready_pickup') {
       orderFilter.value = value;
     }
   }
@@ -127,11 +144,46 @@ class ReceiverOrdersController extends GetxController
   final Map<int, List<ReceiverOrderItem>> itemsCache = {};
   final Map<int, int> itemsVersion = {};
 
+  String get _sessionCacheKey {
+    try {
+      if (Get.isRegistered<AuthController>()) {
+        final auth = Get.find<AuthController>();
+        final userId = auth.admin.value?.id ?? 0;
+        final branchId = auth.currentBranchId ?? 0;
+        return 'receiver:user=$userId:branch=$branchId';
+      }
+    } catch (_) {}
+    return 'receiver:user=0:branch=0';
+  }
+
+  void _ensureSessionCache() {
+    final key = _sessionCacheKey;
+    if (_ordersCacheOwnerKey == key) return;
+
+    _ordersCacheOwnerKey = key;
+    _ordersCache = null;
+    _ordersCacheAt = null;
+    _lastVersion = -1;
+
+    itemsCache.clear();
+    itemsVersion.clear();
+    expandedIds.clear();
+    _stickyUntil.clear();
+    orders.clear();
+  }
+
+  static void clearGlobalCache() {
+    _ordersCacheOwnerKey = null;
+    _ordersCache = null;
+    _ordersCacheAt = null;
+  }
+
   // =========================
   //   📌 كــــــــــــــاش الطلبات
   // =========================
   static List<ReceiverOrder>? _ordersCache;
   static DateTime? _ordersCacheAt;
+  static String? _ordersCacheOwnerKey;
 
   /// TTL للكاش (30 ثانية)
   static const Duration _ordersTTL = Duration(seconds: 30);
@@ -162,7 +214,11 @@ class ReceiverOrdersController extends GetxController
   /// آخر مرة نجح فيها fetch حقيقي
   DateTime? _lastFetchAt;
 
-  static const Set<String> _visibleStatuses = {'pending', 'processing'};
+  static const Set<String> _visibleStatuses = {
+    'pending',
+    'processing',
+    'ready_pickup',
+  };
 
   static const Set<String> _processingAliases = {
     'approved',
@@ -175,6 +231,14 @@ class ReceiverOrdersController extends GetxController
   String _normalizeStatus(String s) {
     final x = s.toLowerCase().trim();
     if (_processingAliases.contains(x)) return 'processing';
+    if ([
+      'ready_pickup',
+      'pickup_ready',
+      'ready_for_pickup',
+      'prepared_pickup',
+    ].contains(x)) {
+      return 'ready_pickup';
+    }
     return x;
   }
 
@@ -198,24 +262,22 @@ class ReceiverOrdersController extends GetxController
   void onReady() {
     super.onReady();
     WidgetsBinding.instance.addObserver(this);
+    _ensureSessionCache();
     fetch();
     _startLiveWatcher();
 
-    _poll = Timer.periodic(
-      Duration(seconds: pollSeconds),
-      (_) async {
-        if (!_isForeground) return;
+    _poll = Timer.periodic(Duration(seconds: pollSeconds), (_) async {
+      if (!_isForeground) return;
 
-        // لو صار fetch ناجح آخر 5 دقائق، ما فيش داعي
-        if (_lastFetchAt != null &&
-            DateTime.now().difference(_lastFetchAt!) <
-                const Duration(minutes: 5)) {
-          return;
-        }
+      // لو صار fetch ناجح آخر 5 دقائق، ما فيش داعي
+      if (_lastFetchAt != null &&
+          DateTime.now().difference(_lastFetchAt!) <
+              const Duration(minutes: 5)) {
+        return;
+      }
 
-        await fetch(silent: true);
-      },
-    );
+      await fetch(silent: true, force: true);
+    });
   }
 
   @override
@@ -231,22 +293,24 @@ class ReceiverOrdersController extends GetxController
     _isForeground = (state == AppLifecycleState.resumed);
 
     if (_isForeground) {
-      _checkVersion();
+      fetch(silent: true, force: true);
     }
   }
 
   void _startLiveWatcher() {
     _liveTimer?.cancel();
 
-    /// ⏱️ خفيف: فقط ordersVersion كل 5 ثواني
+    /// تحديث لحظي: يجلب الطلبات تلقائياً بدون الحاجة لزر التحديث.
+    /// استخدمنا force لتجاوز الكاش حتى تظهر الطلبات الجديدة فوراً.
     _liveTimer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => _checkVersion(),
+      const Duration(seconds: 30),
+      (_) => fetch(silent: true, force: true),
     );
   }
 
   Future<void> _checkVersion() async {
     if (!_isForeground) return;
+    _ensureSessionCache();
 
     try {
       final res = await _api.get(
@@ -264,7 +328,7 @@ class ReceiverOrdersController extends GetxController
       }
       if (v != _lastVersion) {
         _lastVersion = v;
-        await fetch(silent: true);
+        await fetch(silent: true, force: true);
       }
     } catch (_) {}
   }
@@ -307,12 +371,13 @@ class ReceiverOrdersController extends GetxController
     return list;
   }
 
-  Future<void> fetch({bool silent = false}) async {
+  Future<void> fetch({bool silent = false, bool force = false}) async {
     try {
+      _ensureSessionCache();
       if (!silent) loading(true);
 
       // استخدام الكاش لو صالح
-      if (_ordersCache != null && _cacheFresh(_ordersCacheAt)) {
+      if (!force && _ordersCache != null && _cacheFresh(_ordersCacheAt)) {
         orders.assignAll(_ordersCache!);
         if (!silent) loading(false);
         return;
@@ -355,12 +420,15 @@ class ReceiverOrdersController extends GetxController
       unique.sort((a, b) => b.id.compareTo(a.id));
       orders.assignAll(unique);
 
+      _ordersCacheOwnerKey = _sessionCacheKey;
       _ordersCache = unique;
       _ordersCacheAt = DateTime.now();
       _lastFetchAt = DateTime.now();
     } catch (e) {
       if (!silent) {
-        AppSnack.error(AppSnack.friendlyError(e, fallback: 'تعذّر جلب الطلبات'));
+        AppSnack.error(
+          AppSnack.friendlyError(e, fallback: 'تعذّر جلب الطلبات'),
+        );
       }
     } finally {
       if (!silent) loading(false);
@@ -460,6 +528,7 @@ class ReceiverOrdersController extends GetxController
             address: '',
             paymentMethod: 0,
             total: 0,
+            deliveryFee: 0,
             status: 'processing',
             statusOrder: '',
             createdAt: DateTime.now().toIso8601String(),
@@ -517,6 +586,73 @@ class ReceiverOrdersController extends GetxController
     }
   }
 
+  Future<void> markReadyPickup(int orderId) async {
+    try {
+      final res = await _api.postForm(Env.orderUpdate, {
+        'order_id': '$orderId',
+        'action': 'ready_pickup',
+      });
+
+      try {
+        final obj = (res is String) ? jsonDecode(res) : res;
+        if (obj is Map && obj['ok'] == false) {
+          AppSnack.error(
+            (obj['message'] ?? 'تعذر تحديث الطلب إلى تم التجهيز').toString(),
+          );
+          return;
+        }
+      } catch (_) {}
+
+      final idx = orders.indexWhere((o) => o.id == orderId);
+      if (idx != -1) {
+        orders[idx].status = 'ready_pickup';
+        orders.refresh();
+      }
+
+      _stickyUntil[orderId] = DateTime.now().add(_stickyDuration);
+      _ordersCacheAt = null;
+
+      AppSnack.success('تم تجهيز طلب الاستلام');
+      await fetch(silent: true, force: true);
+    } catch (e) {
+      AppSnack.error(
+        AppSnack.friendlyError(e, fallback: 'تعذر تحديث الطلب إلى تم التجهيز'),
+      );
+    }
+  }
+
+  Future<void> markReadyForDriver(int orderId) async {
+    try {
+      final res = await _api.postForm(Env.orderUpdate, {
+        'order_id': '$orderId',
+        'action': 'ready',
+      });
+
+      try {
+        final obj = (res is String) ? jsonDecode(res) : res;
+        if (obj is Map && obj['ok'] == false) {
+          AppSnack.error(
+            (obj['message'] ?? 'تعذر تجهيز الطلب للتوصيل').toString(),
+          );
+          return;
+        }
+      } catch (_) {}
+
+      orders.removeWhere((o) => o.id == orderId);
+      itemsCache.remove(orderId);
+      itemsVersion.remove(orderId);
+      _stickyUntil.remove(orderId);
+      _ordersCacheAt = null;
+
+      AppSnack.success('تم تجهيز الطلب وبدء البحث عن أقرب سائق');
+      _checkVersion();
+    } catch (e) {
+      AppSnack.error(
+        AppSnack.friendlyError(e, fallback: 'تعذر تجهيز الطلب للتوصيل'),
+      );
+    }
+  }
+
   Future<void> markDelivered(int orderId) async {
     try {
       final res = await _api.postForm(Env.orderUpdate, {
@@ -542,7 +678,9 @@ class ReceiverOrdersController extends GetxController
       AppSnack.success('تم تسجيل الطلب كمسلَّم');
       _checkVersion();
     } catch (e) {
-      AppSnack.error(AppSnack.friendlyError(e, fallback: 'تعذّر تحديث حالة الطلب'));
+      AppSnack.error(
+        AppSnack.friendlyError(e, fallback: 'تعذّر تحديث حالة الطلب'),
+      );
     }
   }
 
@@ -554,8 +692,7 @@ class ReceiverOrdersController extends GetxController
     _stickyUntil.remove(orderId);
 
     if (_ordersCache != null) {
-      _ordersCache =
-          _ordersCache!.where((o) => o.id != orderId).toList();
+      _ordersCache = _ordersCache!.where((o) => o.id != orderId).toList();
     }
 
     _ordersCacheAt = null;

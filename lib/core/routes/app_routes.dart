@@ -9,7 +9,9 @@ abstract class Routes {
   static const profile = '/profile';
   static const users = '/users';
   static const drivers = '/drivers';
+  static const deliveryTracking = '/delivery-tracking';
   static const branches = '/branches'; // جديد
+  static const branchMapPicker = '/branches/map-picker';
   static const decide = '/decide';
 
   static const receiverHome = '/receiver/home';

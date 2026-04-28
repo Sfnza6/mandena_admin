@@ -1,24 +1,23 @@
 import 'package:get/get.dart';
 
-class ProfileController extends GetxController {
-  // بيانات المستخدم (اربطها لاحقاً بالـ API إن حبيت)
-  final name = 'عبدالرحيم خالد'.obs;
-  final role = 'admin'.obs; // يظهر تحت الاسم
-  final avatar = 'https://i.pravatar.cc/150?img=15'.obs;
+import 'AuthController.dart';
 
-  // الكروت الأولى
-  final primaryCards = const [
+class ProfileController extends GetxController {
+  final _auth = Get.find<AuthController>();
+
+  String get role => _auth.currentRole;
+  bool get canManageStaff => _auth.isOwner;
+
+  List<ProfileItem> get primaryCards => const [
     ProfileItem('معلومات عامة', 'person_outline'),
-    // ProfileItem('العناوين', 'map_outlined'),
     ProfileItem('سجل الطلبات', 'history_toggle_off'),
   ];
 
-  // الكروت الثانية
-  final secondaryCards = const [
-    ProfileItem('المستخدمين', 'groups_2_outlined'),
-    ProfileItem('السائقين', 'local_shipping_outlined'),
-    // ProfileItem('الشكاوي', 'mark_email_unread_outlined'),
-    ProfileItem('الإدارة', 'admin_panel_settings_outlined'),
+  List<ProfileItem> get secondaryCards => [
+    const ProfileItem('المستخدمين', 'groups_2_outlined'),
+    const ProfileItem('السائقين', 'local_shipping_outlined'),
+    if (canManageStaff)
+      const ProfileItem('الإدارة', 'admin_panel_settings_outlined'),
   ];
 }
 

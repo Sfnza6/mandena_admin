@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import '../../controllers/AuthController.dart';
 import '../../core/routes/app_routes.dart';
 
-const _brown = Color(0xFF6F3F17);
+const _primary = Color(0xFFB85A1B);
 
 // ignore: unused_element
 const String _broadcastUrl = 'https://evoranta.ly/notify/broadcast.php';
@@ -53,6 +53,19 @@ Future<void> showSideOverlayMenu(BuildContext context) {
                               const Duration(milliseconds: 80),
                             );
                             Get.toNamed(Routes.orders);
+                          },
+                        ),
+                        const SizedBox(height: 4),
+
+                        _MenuItem(
+                          title: 'تتبع التوصيل',
+                          icon: Icons.route_outlined,
+                          onTap: () async {
+                            Get.back();
+                            await Future.delayed(
+                              const Duration(milliseconds: 80),
+                            );
+                            Get.toNamed(Routes.deliveryTracking);
                           },
                         ),
                         const SizedBox(height: 4),
@@ -126,7 +139,7 @@ Future<void> showSideOverlayMenu(BuildContext context) {
                           width: 36,
                           height: 36,
                           decoration: const BoxDecoration(
-                            color: _brown,
+                            color: _primary,
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
@@ -166,12 +179,12 @@ class _MenuItem extends StatelessWidget {
     return ListTile(
       onTap: onTap,
       contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: _brown),
-      trailing: const Icon(Icons.chevron_left, color: _brown),
+      leading: Icon(icon, color: _primary),
+      trailing: const Icon(Icons.chevron_left, color: _primary),
       title: Text(
         title,
         style: const TextStyle(
-          color: _brown,
+          color: Colors.black,
           fontSize: 16,
           fontWeight: FontWeight.w700,
         ),
@@ -197,15 +210,15 @@ class _FoodMenuExpansionState extends State<_FoodMenuExpansion> {
         ListTile(
           onTap: () => setState(() => _open = !_open),
           contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.restaurant_menu, color: _brown),
+          leading: const Icon(Icons.restaurant_menu, color: _primary),
           trailing: Icon(
             _open ? Icons.expand_less : Icons.expand_more,
-            color: _brown,
+            color: _primary,
           ),
           title: const Text(
             'قائمة الطعام',
             style: TextStyle(
-              color: _brown,
+              color: Colors.black,
               fontSize: 16,
               fontWeight: FontWeight.w800,
             ),
@@ -292,10 +305,13 @@ class _SubItem extends StatelessWidget {
       onTap: onTap,
       dense: true,
       contentPadding: const EdgeInsetsDirectional.only(start: 8, end: 0),
-      leading: Icon(icon, color: _brown),
+      leading: Icon(icon, color: _primary),
       title: Text(
         title,
-        style: const TextStyle(color: _brown, fontWeight: FontWeight.w700),
+        style: const TextStyle(
+          color: Colors.black,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

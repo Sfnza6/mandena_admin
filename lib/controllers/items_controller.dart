@@ -10,15 +10,18 @@ import '../core/services/api_service.dart';
 import '../data/models/category_model.dart';
 import '../data/models/item_model.dart';
 import 'admin_branch_scope_controller.dart';
+import 'AuthController.dart';
+import 'categories_controller.dart';
 
 class ItemsController extends GetxController {
   final _api = ApiService();
   final _branchScope = Get.find<AdminBranchScopeController>();
   Worker? _branchWorker;
+  int? _lastBranchId;
 
   static final Map<int, List<ItemModel>> _cacheItemsByBranch = {};
   static final Map<int, DateTime> _cacheItemsTimeByBranch = {};
-  static const Duration _itemsCacheDuration = Duration(seconds: 45);
+  static const Duration _itemsCacheDuration = Duration(minutes: 2);
 
   static final Map<int, List<CategoryModel>> _cacheCategoriesByBranch = {};
   static final Map<int, DateTime> _cacheCategoriesTimeByBranch = {};
@@ -115,14 +118,34 @@ class ItemsController extends GetxController {
     return fallback;
   }
 
+  void invalidateCategoriesCache({bool clearSelection = false}) {
+    final branchId = _branchId;
+    if (branchId != null) {
+      _cacheCategoriesByBranch.remove(branchId);
+      _cacheCategoriesTimeByBranch.remove(branchId);
+    }
+    categories.clear();
+    if (clearSelection) {
+      selectedCategoryId.value = null;
+    }
+  }
+
+  Future<void> refreshCategoriesAfterCategoryChange() async {
+    invalidateCategoriesCache();
+    await fetchCategories(force: true, silentIfNoBranch: true);
+  }
+
   @override
   void onInit() {
     super.onInit();
 
-    _branchWorker = ever<int?>(_branchScope.selectedBranchId, (_) async {
+    _branchWorker = ever<int?>(_branchScope.selectedBranchId, (branchId) async {
+      if (branchId == null || branchId <= 0) return;
+      if (_lastBranchId == branchId) return;
+      _lastBranchId = branchId;
       _clearCurrentBranchUi();
-      await fetchCategories(force: true, silentIfNoBranch: true);
-      await fetchItems(force: true, silentIfNoBranch: true);
+      await fetchCategories(silentIfNoBranch: true);
+      await fetchItems(silentIfNoBranch: true);
     });
 
     ever<List<ItemModel>>(items, (_) => _applyFilter());
@@ -143,6 +166,30 @@ class ItemsController extends GetxController {
     priceCtrl.dispose();
     discountCtrl.dispose();
     super.onClose();
+  }
+
+  Future<void> refreshLive({bool refreshCategoriesToo = false}) async {
+    final branchId = _branchId;
+    if (branchId != null) {
+      _cacheItemsByBranch.remove(branchId);
+      _cacheItemsTimeByBranch.remove(branchId);
+      if (refreshCategoriesToo) {
+        _cacheCategoriesByBranch.remove(branchId);
+        _cacheCategoriesTimeByBranch.remove(branchId);
+      }
+    }
+    await fetchItems(force: true, silentIfNoBranch: true);
+    if (refreshCategoriesToo) {
+      await fetchCategories(force: true, silentIfNoBranch: true);
+    }
+    items.refresh();
+    filtered.refresh();
+
+    if (Get.isRegistered<CategoriesController>()) {
+      try {
+        await Get.find<CategoriesController>().refreshLive();
+      } catch (_) {}
+    }
   }
 
   void _clearCurrentBranchUi() {
@@ -383,7 +430,7 @@ class ItemsController extends GetxController {
       final decoded = _safeDecode(res) ?? <String, dynamic>{};
 
       if (_okFromMap(decoded)) {
-        await fetchItems(force: true);
+        await refreshLive(refreshCategoriesToo: true);
         resetForm();
         return true;
       }
@@ -446,7 +493,7 @@ class ItemsController extends GetxController {
       final decoded = _safeDecode(res) ?? <String, dynamic>{};
 
       if (_okFromMap(decoded)) {
-        await fetchItems(force: true);
+        await refreshLive(refreshCategoriesToo: true);
         resetForm();
         return true;
       }
@@ -476,7 +523,7 @@ class ItemsController extends GetxController {
       final res = await _api.postForm(Env.itemDelete, {'id': it.id.toString()});
 
       if (_isSuccess(res)) {
-        await fetchItems(force: true);
+        await refreshLive(refreshCategoriesToo: true);
         Get.snackbar(
           'تم',
           'تم حذف ${it.name}',
@@ -522,23 +569,39 @@ class ItemsController extends GetxController {
     final uri = Uri.parse(url);
     final req = http.MultipartRequest('POST', uri);
 
-    fields.removeWhere((k, v) => v.isEmpty);
-    req.fields.addAll(fields);
+    final cleanFields = <String, String>{...fields};
+    cleanFields.removeWhere((k, v) => v.trim().isEmpty);
+    req.fields.addAll(cleanFields);
 
     if (branchId != null && branchId > 0) {
       req.fields['branch_id'] = branchId.toString();
       req.headers['X-Branch-Id'] = branchId.toString();
     }
 
+    try {
+      if (Get.isRegistered<AuthController>()) {
+        final token = Get.find<AuthController>().token;
+        if (token != null && token.isNotEmpty) {
+          req.headers['Authorization'] = 'Bearer $token';
+          req.fields['token'] = token;
+        }
+      }
+    } catch (_) {}
+
     req.headers['Accept'] = 'application/json';
     req.files.add(await http.MultipartFile.fromPath('image', image.path));
 
-    final streamed = await req.send();
+    final streamed = await req.send().timeout(const Duration(seconds: 30));
     final resp = await http.Response.fromStream(streamed);
 
     final m = _safeDecode(resp.body);
     if (m != null) return m;
-    return {'ok': false, 'message': resp.body};
+    return {
+      'ok': false,
+      'status': 'error',
+      'code': resp.statusCode,
+      'message': resp.body,
+    };
   }
 
   void prepareEdit(ItemModel it) {

@@ -14,7 +14,7 @@ class MostOrderedList extends StatelessWidget {
     required this.items,
   });
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +36,7 @@ class MostOrderedList extends StatelessWidget {
                 'الأكثر طلبًا',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w900,
-                  color: brown,
+                  color: primary,
                 ),
                 textAlign: TextAlign.right,
               ),
@@ -87,7 +87,7 @@ class _TabsBar extends StatelessWidget {
   final int period;
   final ValueChanged<int> onChange;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +115,7 @@ class _TabsBar extends StatelessWidget {
                     AnimatedDefaultTextStyle(
                       duration: const Duration(milliseconds: 150),
                       style: TextStyle(
-                        color: selected ? brown : Colors.black87,
+                        color: selected ? primary : Colors.black87,
                         fontWeight: selected
                             ? FontWeight.w900
                             : FontWeight.w600,
@@ -130,12 +130,12 @@ class _TabsBar extends StatelessWidget {
                       height: 3,
                       width: selected ? 24 : 0,
                       decoration: BoxDecoration(
-                        color: selected ? brown : Colors.transparent,
+                        color: selected ? primary : Colors.transparent,
                         borderRadius: BorderRadius.circular(2),
                         boxShadow: selected
                             ? [
                                 BoxShadow(
-                                  color: brown.withOpacity(.25),
+                                  color: primary.withOpacity(.25),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 ),
@@ -203,8 +203,8 @@ class _RowItem extends StatelessWidget {
           // trailing: Container(
           //   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           //   decoration: BoxDecoration(
-          //     color: brown.withOpacity(.08),
-          //     border: Border.all(color: brown.withOpacity(.18)),
+          //     color: primary.withOpacity(.08),
+          //     border: Border.all(color: primary.withOpacity(.18)),
           //     borderRadius: BorderRadius.circular(12),
           //   ),
           //   child: Column(

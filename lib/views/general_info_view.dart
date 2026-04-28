@@ -7,8 +7,8 @@ import '../../controllers/AuthController.dart'; // لو عندك AuthController 
 class GeneralInfoView extends GetView<AdminProfileController> {
   const GeneralInfoView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
-  static const pageBg = Color(0xFFF3F0ED);
+  static const primary = Color(0xFFB85A1B);
+  static const pageBg = Color(0xFFF7F7F9);
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +28,7 @@ class GeneralInfoView extends GetView<AdminProfileController> {
       child: Scaffold(
         backgroundColor: pageBg,
         appBar: AppBar(
-          backgroundColor: brown,
+          backgroundColor: primary,
           title: const Text('معلومات عامة'),
           centerTitle: true,
         ),
@@ -69,7 +69,7 @@ class GeneralInfoView extends GetView<AdminProfileController> {
                       //   radius: 36,
                       //   backgroundColor: const Color(0xFFF2EFEA),
                       //   backgroundImage: adm.avatarUrl.isEmpty ? null : NetworkImage(adm.avatarUrl),
-                      //   child: adm.avatarUrl.isEmpty ? Icon(Icons.person, color: brown, size: 32) : null,
+                      //   child: adm.avatarUrl.isEmpty ? Icon(Icons.person, color: primary, size: 32) : null,
                       // ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -159,7 +159,7 @@ class GeneralInfoView extends GetView<AdminProfileController> {
                               ? null
                               : controller.changePassword,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: brown,
+                            backgroundColor: primary,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),

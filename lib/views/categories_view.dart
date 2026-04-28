@@ -10,8 +10,8 @@ import '../../data/models/item_model.dart';
 class CategoriesView extends StatelessWidget {
   const CategoriesView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
-  static const pageBg = Color(0xFFF3F0ED);
+  static const primary = Color(0xFFB85A1B);
+  static const pageBg = Color(0xFFF7F7F9);
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +75,7 @@ class CategoriesView extends StatelessWidget {
         floatingActionButton: Padding(
           padding: const EdgeInsets.only(right: 16, bottom: 16),
           child: FloatingActionButton(
-            backgroundColor: brown,
+            backgroundColor: primary,
             elevation: 4,
             onPressed: () =>
                 Get.find<CategoriesController>().showAddCategorySheet(),
@@ -92,14 +92,14 @@ class _Header extends StatelessWidget {
   const _Header({required this.controller});
   final CategoriesController controller;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: const BoxDecoration(
-        color: brown,
+        color: primary,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(18)),
       ),
       child: Row(
@@ -166,7 +166,7 @@ class _CategoryCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -218,7 +218,7 @@ class _CategoryCard extends StatelessWidget {
                       _actionIcon(
                         icon: Icons.edit_outlined,
                         bg: const Color(0xFFF7F4F0),
-                        color: brown,
+                        color: primary,
                         onTap: onEdit,
                       ),
                     ],
@@ -320,8 +320,8 @@ class CategoryItemsView extends StatelessWidget {
   const CategoryItemsView({super.key, required this.category});
   final CategoryModel category;
 
-  static const brown = Color(0xFF6F3F17);
-  static const pageBg = Color(0xFFF3F0ED);
+  static const primary = Color(0xFFB85A1B);
+  static const pageBg = Color(0xFFF7F7F9);
 
   @override
   Widget build(BuildContext context) {
@@ -338,7 +338,7 @@ class CategoryItemsView extends StatelessWidget {
       child: Scaffold(
         backgroundColor: pageBg,
         appBar: AppBar(
-          backgroundColor: brown,
+          backgroundColor: primary,
           iconTheme: const IconThemeData(color: Colors.white),
           title: Text(
             category.name,
@@ -398,7 +398,7 @@ class _ItemCardMini extends StatelessWidget {
   final String title, imageUrl, subtitle;
   final double price;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -425,7 +425,7 @@ class _ItemCardMini extends StatelessWidget {
               margin: const EdgeInsets.only(top: 8, right: 8),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: brown,
+                color: primary,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -505,7 +505,7 @@ class _CategoryFormSheet extends StatelessWidget {
   const _CategoryFormSheet({required this.controller});
   final CategoriesController controller;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -528,7 +528,7 @@ class _CategoryFormSheet extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: brown,
+              color: primary,
               borderRadius: BorderRadius.circular(16),
             ),
             alignment: Alignment.center,
@@ -598,7 +598,7 @@ class _CategoryFormSheet extends StatelessWidget {
                     child: Obx(
                       () => ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: brown,
+                          backgroundColor: primary,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),

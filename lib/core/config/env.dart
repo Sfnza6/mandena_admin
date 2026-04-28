@@ -1,5 +1,5 @@
 class Env {
-  static const base = 'http://192.168.127.1/mandena/'; // عدّلها
+  static const base = "https://mandena.ly/mandena"; // عدّلها
   static const String driverApiBase = '$base/api/driver/';
 
   // ===== المكوّنات والأصناف (Admin) =====
@@ -8,6 +8,8 @@ class Env {
   static const itemComponentsGet = '$base/admin_get_item_components.php';
   static const itemComponentsSave = '$base/admin_save_item_components.php';
   static const componentAdd = '$base/admin_add_component.php';
+  static const componentUpdate = '$base/admin_update_component.php';
+  static const componentDelete = '$base/admin_delete_component.php';
 
   // (الباقي كما هو عندك)
 
@@ -53,7 +55,7 @@ class Env {
   // Dashboard (لو عندك سكربتات)
   static const stats = "$base/dashboard_stats.php";
   static const mostOrdered = "$base/admin_most_ordered.php";
-  static const reviews = "$base/dashboard/reviews.php";
+  static const reviews = "$base/reviews.php";
 
   // Users
   static const usersList = "$base/get_user.php";
@@ -69,6 +71,11 @@ class Env {
   static const driversList = "$base/get_drivers.php";
   static const orderAssignDriver = "$base/assign_driver.php";
   static const assignedOrders = '$base/get_assigned_orders.php';
+
+  // تتبع التوصيل التلقائي للأدمن / الريسيفر
+  static const adminDriverTracking =
+      '$base/api/driver/admin_driver_tracking.php';
+  static const adminDriversLive = '$base/api/driver/admin_drivers_live.php';
 
   // ✅ مسارات واجهة السائق (داش بورد + الإغلاقات)
   static const String driverDashboard = '${driverApiBase}dashboard.php';

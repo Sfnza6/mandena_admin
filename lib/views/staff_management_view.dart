@@ -2,18 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../controllers/staff_controller.dart';
+import '../../controllers/AuthController.dart';
 import '../../data/models/branch_model.dart';
 import '../../data/models/staff_model.dart';
 
 class StaffManagementView extends GetView<StaffController> {
   const StaffManagementView({super.key});
 
-  static const brown = Color(0xFF6F3F17);
-  static const pageBg = Color(0xFFF3F0ED);
+  static const primary = Color(0xFFB85A1B);
+  static const pageBg = Color(0xFFF7F7F9);
 
   @override
   Widget build(BuildContext context) {
     final pad = MediaQuery.of(context).padding;
+    final auth = Get.find<AuthController>();
+
+    if (!auth.isOwner) {
+      return const Directionality(
+        textDirection: TextDirection.rtl,
+        child: Scaffold(
+          backgroundColor: pageBg,
+          body: Center(child: Text('هذه الصفحة متاحة لمالك المطعم فقط')),
+        ),
+      );
+    }
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -56,7 +68,7 @@ class StaffManagementView extends GetView<StaffController> {
         floatingActionButton: Padding(
           padding: const EdgeInsets.only(right: 16, bottom: 16),
           child: FloatingActionButton(
-            backgroundColor: brown,
+            backgroundColor: primary,
             onPressed: () => _showAddSheet(context),
             child: const Icon(Icons.add, color: Colors.white),
           ),
@@ -173,7 +185,7 @@ class StaffManagementView extends GetView<StaffController> {
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: brown,
+                        backgroundColor: primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -216,14 +228,14 @@ InputDecoration _decor(String hint) => InputDecoration(
 class _Header extends StatelessWidget {
   const _Header({required this.controller});
   final StaffController controller;
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: const BoxDecoration(
-        color: brown,
+        color: primary,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(18)),
       ),
       child: Row(
@@ -285,7 +297,7 @@ class _StaffTile extends StatelessWidget {
   final VoidCallback? onChangeRole;
   final VoidCallback? onDelete;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   Color _roleColor(String role) {
     switch (role) {
@@ -337,7 +349,7 @@ class _StaffTile extends StatelessWidget {
             backgroundColor: const Color(0xFFEEE3D9),
             child: Text(
               s.name.isNotEmpty ? s.name.characters.first : 'ط',
-              style: const TextStyle(color: brown, fontWeight: FontWeight.bold),
+              style: const TextStyle(color: primary, fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(width: 12),
@@ -410,7 +422,7 @@ class _StaffTile extends StatelessWidget {
             children: [
               IconButton(
                 onPressed: onChangeRole,
-                icon: const Icon(Icons.security, color: Colors.orange),
+                icon: const Icon(Icons.security, color: Color(0xFFB85A1B)),
                 tooltip: 'تغيير الصلاحية',
               ),
               if (onDelete != null)
@@ -431,7 +443,7 @@ class _AddStaffSheet extends StatelessWidget {
   const _AddStaffSheet({required this.onSubmit});
   final VoidCallback onSubmit;
 
-  static const brown = Color(0xFF6F3F17);
+  static const primary = Color(0xFFB85A1B);
 
   @override
   Widget build(BuildContext context) {
@@ -456,7 +468,7 @@ class _AddStaffSheet extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
-              color: brown,
+              color: primary,
               borderRadius: BorderRadius.circular(16),
             ),
             alignment: Alignment.center,
@@ -539,7 +551,7 @@ class _AddStaffSheet extends StatelessWidget {
                       value: c.active.value,
                       onChanged: (v) => c.active.value = v,
                       title: const Text('الحساب نشط'),
-                      activeThumbColor: brown,
+                      activeThumbColor: primary,
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -547,7 +559,7 @@ class _AddStaffSheet extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: brown,
+                        backgroundColor: primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),

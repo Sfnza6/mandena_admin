@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'payment_settings_controller.dart';
 
-const _brown = Color(0xFF6F3F17);
+const _primary = Color(0xFFB85A1B);
 
 class PaymentSettingsPage extends StatelessWidget {
   const PaymentSettingsPage({super.key});
@@ -30,7 +30,7 @@ class PaymentSettingsPage extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             children: [
               SwitchListTile(
-                activeThumbColor: _brown,
+                activeThumbColor: _primary,
                 title: const Text('تفعيل الدفع الإلكتروني في تطبيق المستخدم'),
                 value: c.onlineEnabled.value,
                 onChanged: (v) => c.onlineEnabled.value = v,
@@ -38,7 +38,7 @@ class PaymentSettingsPage extends StatelessWidget {
               const Divider(),
 
               SwitchListTile(
-                activeThumbColor: _brown,
+                activeThumbColor: _primary,
                 title: const Text('مصرفي باي (الجمهورية)'),
                 value: c.masrafyEnabled.value,
                 onChanged: c.onlineEnabled.value
@@ -46,7 +46,7 @@ class PaymentSettingsPage extends StatelessWidget {
                     : null,
               ),
               SwitchListTile(
-                activeThumbColor: _brown,
+                activeThumbColor: _primary,
                 title: const Text('يسر أونلاين (التجاري)'),
                 value: c.yesserEnabled.value,
                 onChanged: c.onlineEnabled.value
@@ -54,7 +54,7 @@ class PaymentSettingsPage extends StatelessWidget {
                     : null,
               ),
               SwitchListTile(
-                activeThumbColor: _brown,
+                activeThumbColor: _primary,
                 title: const Text('صحاري باي (الصحاري)'),
                 value: c.sahariEnabled.value,
                 onChanged: c.onlineEnabled.value
@@ -101,7 +101,7 @@ class PaymentSettingsPage extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.w900),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _brown,
+                    backgroundColor: _primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
