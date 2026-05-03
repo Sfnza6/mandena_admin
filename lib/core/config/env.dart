@@ -76,6 +76,7 @@ class Env {
   static const adminDriverTracking =
       '$base/api/driver/admin_driver_tracking.php';
   static const adminDriversLive = '$base/api/driver/admin_drivers_live.php';
+  static const forceAssignDriver = '$base/api/driver/force_assign_driver.php';
 
   // ✅ مسارات واجهة السائق (داش بورد + الإغلاقات)
   static const String driverDashboard = '${driverApiBase}dashboard.php';

@@ -37,7 +37,7 @@ class ReceiverOrdersView extends StatelessWidget {
           actions: [
             IconButton(
               tooltip: 'تحديث',
-              onPressed: () => c.fetch(),
+              onPressed: () => c.fetch(force: true),
               icon: const Icon(Icons.refresh_rounded),
             ),
           ],
@@ -56,12 +56,6 @@ class ReceiverOrdersView extends StatelessWidget {
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      _FilterChip(
-                        label: 'الكل',
-                        isSelected: c.orderFilter.value == 'all',
-                        onTap: () => c.setOrderFilter('all'),
-                      ),
-                      const SizedBox(width: 8),
                       _FilterChip(
                         label: 'المعلقة',
                         isSelected: c.orderFilter.value == 'pending',
@@ -88,7 +82,7 @@ class ReceiverOrdersView extends StatelessWidget {
                     ? const Center(child: CircularProgressIndicator())
                     : c.orders.isEmpty
                     ? RefreshIndicator(
-                        onRefresh: () => c.fetch(),
+                        onRefresh: () => c.fetch(force: true),
                         child: ListView(
                           padding: const EdgeInsets.all(24),
                           children: const [
@@ -122,7 +116,7 @@ class ReceiverOrdersView extends StatelessWidget {
                         ),
                       )
                     : RefreshIndicator(
-                        onRefresh: () => c.fetch(),
+                        onRefresh: () => c.fetch(force: true),
                         child: ListView.separated(
                           padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
                           itemCount: filtered.length,
@@ -135,7 +129,9 @@ class ReceiverOrdersView extends StatelessWidget {
                             final cachedItems = c.itemsCache[o.id];
 
                             final badge = _Status.badgeFor(o.status);
-                            final isPickup = o.statusOrder == 'pickup';
+                            final isPickup =
+                                o.statusOrder == 'pickup' ||
+                                o.statusOrder == 'internal_pickup';
 
                             return _Card(
                               child: Theme(
@@ -191,7 +187,12 @@ class ReceiverOrdersView extends StatelessWidget {
                                                 ),
                                                 const SizedBox(width: 5),
                                                 Text(
-                                                  isPickup ? 'استلام' : 'توصيل',
+                                                  isPickup
+                                                      ? (o.statusOrder ==
+                                                                'internal_pickup'
+                                                            ? 'استلام داخلي'
+                                                            : 'استلام خارجي')
+                                                      : 'توصيل',
                                                   style: TextStyle(
                                                     color: Colors.grey.shade700,
                                                     fontWeight: FontWeight.w700,
@@ -393,7 +394,7 @@ class ReceiverOrdersView extends StatelessWidget {
                                                   const SizedBox(width: 10),
                                                   Expanded(
                                                     child: _ActionBtn.filled(
-                                                      label: 'موافقة التحضير',
+                                                      label: 'موافقة',
                                                       icon: Icons.check_rounded,
                                                       color: kPrimary,
                                                       onTap: () async {
@@ -416,33 +417,50 @@ class ReceiverOrdersView extends StatelessWidget {
                                                   },
                                                 ),
                                               )
-                                            else
+                                            else if (isPickup)
                                               SizedBox(
                                                 width: double.infinity,
                                                 child: _ActionBtn.filled(
-                                                  label: isPickup
-                                                      ? 'تم التجهيز'
-                                                      : 'جهز للتوصيل',
-                                                  icon: isPickup
-                                                      ? Icons
-                                                            .inventory_2_outlined
-                                                      : Icons.route_outlined,
+                                                  label: 'تم التجهيز',
+                                                  icon: Icons
+                                                      .inventory_2_outlined,
                                                   color: kPrimary,
                                                   onTap: () async {
-                                                    if (isPickup) {
-                                                      await c.markReadyPickup(
-                                                        o.id,
-                                                      );
-                                                    } else {
-                                                      await c
-                                                          .markReadyForDriver(
-                                                            o.id,
-                                                          );
-                                                      await c.fetch(
-                                                        silent: true,
-                                                      );
-                                                    }
+                                                    await c.markReadyPickup(
+                                                      o.id,
+                                                    );
                                                   },
+                                                ),
+                                              )
+                                            else
+                                              Container(
+                                                width: double.infinity,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 11,
+                                                    ),
+                                                decoration: BoxDecoration(
+                                                  color: kPrimary.withOpacity(
+                                                    .08,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(14),
+                                                  border: Border.all(
+                                                    color: kPrimary.withOpacity(
+                                                      .16,
+                                                    ),
+                                                  ),
+                                                ),
+                                                child: const Text(
+                                                  'طلب التوصيل قيد التحضير، وسيظهر في صفحة التتبع عند خروجه للتوصيل أو عند فشل تعيين السائق.',
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    color: kPrimary,
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: 12.5,
+                                                    height: 1.35,
+                                                  ),
                                                 ),
                                               ),
                                           ],
@@ -822,6 +840,14 @@ class _Status {
       case 'ready_pickup':
         return const _Status('تم التجهيز', Colors.green);
       case 'assigned':
+      case 'ready_for_driver':
+      case 'searching_driver':
+      case 'driver_offered':
+      case 'driver_to_pickup':
+        return const _Status('جاري التحضير', ReceiverOrdersView.kPrimary);
+      case 'on_the_way':
+      case 'out_for_delivery':
+      case 'delivering':
         return const _Status('جاري التوصيل', Colors.teal);
       case 'delivered':
         return const _Status('تم التسليم', Colors.green);

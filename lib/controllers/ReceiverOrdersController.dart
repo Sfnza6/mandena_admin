@@ -53,6 +53,17 @@ class ReceiverOrder {
       createdAt: (j['created_at'] ?? '').toString(),
     );
   }
+
+  bool get isPickupOrder =>
+      statusOrder == 'pickup' || statusOrder == 'internal_pickup';
+
+  bool get isInternalPickup => statusOrder == 'internal_pickup';
+
+  String get orderTypeLabel {
+    if (statusOrder == 'internal_pickup') return 'استلام داخلي';
+    if (statusOrder == 'pickup') return 'استلام خارجي';
+    return 'توصيل';
+  }
 }
 
 class ReceiverOrderItem {
@@ -123,12 +134,12 @@ class ReceiverOrdersController extends GetxController
   final loading = false.obs;
   final orders = <ReceiverOrder>[].obs;
 
-  /// فلتر العرض: 'all' | 'pending' | 'processing' | 'ready_pickup'
-  final orderFilter = 'all'.obs;
+  /// فلتر العرض في صفحة الطلبات الواردة فقط.
+  /// لا يوجد تبويب الكل، وطلبات التوصيل التي خرجت للتوصيل أو فشل تعيينها تظهر في صفحة التتبع.
+  final orderFilter = 'pending'.obs;
 
   void setOrderFilter(String value) {
-    if (value == 'all' ||
-        value == 'pending' ||
+    if (value == 'pending' ||
         value == 'processing' ||
         value == 'ready_pickup') {
       orderFilter.value = value;
@@ -136,7 +147,6 @@ class ReceiverOrdersController extends GetxController
   }
 
   List<ReceiverOrder> get filteredOrders {
-    if (orderFilter.value == 'all') return orders;
     return orders.where((o) => o.status == orderFilter.value).toList();
   }
 
@@ -230,8 +240,11 @@ class ReceiverOrdersController extends GetxController
 
   String _normalizeStatus(String s) {
     final x = s.toLowerCase().trim();
+
     if (_processingAliases.contains(x)) return 'processing';
-    if ([
+
+    // حالات الاستلام بعد التجهيز تبقى في صفحة الطلبات الواردة حتى يضغط الأدمن تم التسليم.
+    if (const [
       'ready_pickup',
       'pickup_ready',
       'ready_for_pickup',
@@ -239,6 +252,36 @@ class ReceiverOrdersController extends GetxController
     ].contains(x)) {
       return 'ready_pickup';
     }
+
+    // هذه الحالات تخص طلبات التوصيل قبل خروج الطلب فعلياً مع السائق.
+    // نعرضها في الطلبات الواردة كـ "جاري التحضير" فقط بدون زر جهز للتوصيل.
+    if (const [
+      'ready_for_driver',
+      'searching_driver',
+      'driver_offered',
+      'assigned',
+      'driver_to_pickup',
+    ].contains(x)) {
+      return 'processing';
+    }
+
+    // حالات التوصيل الفعلية أو فشل التعيين لا تظهر هنا؛ مكانها صفحة التتبع.
+    if (const [
+      'on_the_way',
+      'out_for_delivery',
+      'delivering',
+      'handover',
+      'assignment_failed',
+      'no_driver',
+      'driver_rejected_after_accept',
+      'delivered',
+      'success',
+      'completed',
+      'complete',
+    ].contains(x)) {
+      return x;
+    }
+
     return x;
   }
 
@@ -345,6 +388,23 @@ class ReceiverOrdersController extends GetxController
 
     for (final e in data) {
       final m = Map<String, dynamic>.from(e as Map);
+
+      final assignmentStatus = '${m['driver_assignment_status'] ?? ''}'
+          .toLowerCase()
+          .trim();
+      final offerStatus = '${m['offer_status'] ?? ''}'.toLowerCase().trim();
+
+      // فشل تعيين السائق أو انسحاب السائق بعد القبول مكانه صفحة التتبع، وليس الطلبات الواردة.
+      if (const {
+            'assignment_failed',
+            'no_driver',
+            'failed',
+            'driver_rejected_after_accept',
+          }.contains(assignmentStatus) ||
+          offerStatus == 'driver_rejected_after_accept') {
+        continue;
+      }
+
       final o = ReceiverOrder.fromJson(m);
       o.status = _normalizeStatus(o.status);
 
@@ -388,7 +448,8 @@ class ReceiverOrdersController extends GetxController
         res = await _api.get(
           Env.ordersList,
           query: {
-            'status': 'pending,processing,approved,accepted,preparing',
+            'status':
+                'pending,processing,approved,accepted,preparing,ready_pickup,ready_for_driver,searching_driver,driver_offered,assigned,driver_to_pickup,on_the_way,out_for_delivery,delivering,assignment_failed,no_driver,delivered',
             't': '${DateTime.now().millisecondsSinceEpoch}',
           },
         );
@@ -401,19 +462,11 @@ class ReceiverOrdersController extends GetxController
 
       final fresh = _parseAndFilterAndCache(res);
 
-      final stickyKept = <ReceiverOrder>[];
-      for (final o in orders) {
-        if (_isSticky(o.id) && _visibleStatuses.contains(o.status)) {
-          final exists = fresh.any((x) => x.id == o.id);
-          if (!exists) stickyKept.add(o);
-        }
-      }
-
-      final merged = [...fresh, ...stickyKept];
-
+      // مهم جداً: لا نحتفظ بأي طلب قديم محلياً إذا لم يعد راجعاً من السيرفر.
+      // هذا يمنع بقاء طلب التوصيل كـ "جاري التحضير" بعد أن يصبح "جاري التوصيل" أو "فشل تعيين سائق".
       final seen = <int>{};
       final unique = <ReceiverOrder>[];
-      for (final o in merged) {
+      for (final o in fresh) {
         if (seen.add(o.id)) unique.add(o);
       }
 
@@ -543,10 +596,59 @@ class ReceiverOrdersController extends GetxController
 
       _ordersCacheAt = null;
 
-      AppSnack.success('تمت الموافقة (جاري التحضير)');
+      ReceiverOrder? approvedOrder;
+      for (final o in orders) {
+        if (o.id == orderId) {
+          approvedOrder = o;
+          break;
+        }
+      }
+      final isPickupOrder = approvedOrder?.isPickupOrder ?? false;
+
+      AppSnack.success(
+        isPickupOrder
+            ? 'تمت الموافقة والطلب الآن جاري التحضير'
+            : 'تمت الموافقة وبدأ البحث عن أقرب سائق',
+      );
+
+      // طلبات الاستلام الخارجي/الداخلي لا تدخل في منظومة السائق.
+      // التوصيل فقط يبدأ البحث عن أقرب سائق بعد الموافقة.
+      if (!isPickupOrder) {
+        await _autoTriggerDriverSearch(orderId);
+      }
+
+      await fetch(silent: true, force: true);
       _checkVersion();
     } catch (e) {
       AppSnack.error(AppSnack.friendlyError(e, fallback: 'تعذّر الموافقة'));
+    }
+  }
+
+  /// ✅ بحث تلقائي عن أقرب سائق متاح وتعيينه
+  /// يعمل في الخلفية بدون حظر الواجهة — لو فشل لا يُظهر خطأ
+  Future<void> _autoTriggerDriverSearch(int orderId) async {
+    try {
+      // 1️⃣ أولاً: نخبر السيرفر أن الطلب جاهز للسائق (يبدأ بحث تلقائي)
+      final res = await _api.postForm(Env.orderUpdate, {
+        'order_id': '$orderId',
+        'action': 'ready',
+      });
+
+      // لا نحذف الطلب من القائمة — يبقى مرئياً حتى يتم التعيين
+      debugPrint('🚗 Auto driver search triggered for order #$orderId');
+
+      try {
+        final obj = (res is String) ? jsonDecode(res) : res;
+        if (obj is Map && obj['ok'] == true) {
+          debugPrint(
+            '✅ Server started searching for driver for order #$orderId',
+          );
+        }
+      } catch (_) {}
+    } catch (e) {
+      // صامت: لو فشل البحث، الطلب يبقى processing
+      // ويمكن للمستقبل لاحقاً الضغط على "تم التجهيز" يدوياً
+      debugPrint('⚠️ Auto driver search failed for order #$orderId: $e');
     }
   }
 

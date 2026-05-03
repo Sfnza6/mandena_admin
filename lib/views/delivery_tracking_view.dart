@@ -127,34 +127,40 @@ class _Header extends StatelessWidget {
               final selectedStatus = controller.status.value;
               final tabs = controller.filters;
 
-              return ListView.separated(
+              return SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                itemCount: tabs.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (_, i) {
-                  final t = tabs[i];
-                  final selected = selectedStatus == t.key;
+                child: Row(
+                  textDirection: TextDirection.rtl,
+                  children: List.generate(tabs.length, (i) {
+                    final t = tabs[i];
+                    final selected = selectedStatus == t.key;
 
-                  return ChoiceChip(
-                    label: Text(t.value),
-                    selected: selected,
-                    onSelected: (_) => controller.setStatus(t.key),
-                    selectedColor: Colors.white,
-                    backgroundColor: const Color.fromARGB(
-                      255,
-                      223,
-                      223,
-                      223,
-                    ).withOpacity(.18),
-                    labelStyle: TextStyle(
-                      color: selected
-                          ? DeliveryTrackingView.primary
-                          : const Color.fromARGB(255, 199, 105, 16),
-                      fontWeight: FontWeight.w800,
-                    ),
-                    side: BorderSide(color: Colors.white.withOpacity(.30)),
-                  );
-                },
+                    return Padding(
+                      padding: EdgeInsets.only(
+                        left: i == tabs.length - 1 ? 0 : 8,
+                      ),
+                      child: ChoiceChip(
+                        label: Text(t.value),
+                        selected: selected,
+                        onSelected: (_) => controller.setStatus(t.key),
+                        selectedColor: Colors.white,
+                        backgroundColor: const Color.fromARGB(
+                          255,
+                          223,
+                          223,
+                          223,
+                        ).withOpacity(.18),
+                        labelStyle: TextStyle(
+                          color: selected
+                              ? DeliveryTrackingView.primary
+                              : const Color.fromARGB(255, 199, 105, 16),
+                          fontWeight: FontWeight.w800,
+                        ),
+                        side: BorderSide(color: Colors.white.withOpacity(.30)),
+                      ),
+                    );
+                  }),
+                ),
               );
             }),
           ),
@@ -266,6 +272,49 @@ class _TrackingCard extends StatelessWidget {
               icon: Icons.route_outlined,
               text: 'بعد السائق عن الفرع: $distance كم',
             ),
+          if (controller.isAssignmentFailed(row)) ...[
+            const SizedBox(height: 8),
+            _InfoLine(
+              icon: Icons.warning_amber_rounded,
+              text: _hasValue(row['driver_assignment_note'])
+                  ? '${row['driver_assignment_note']}'
+                  : 'فشل الوصول لأي سائق تلقائياً. اختر سائقاً للتكليف الإجباري.',
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 44,
+              child: Obx(() {
+                final assigning =
+                    controller.forceAssigningOrderId.value == orderId;
+                return ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade700,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: orderId <= 0 || assigning
+                      ? null
+                      : () => _showForceAssignDialog(
+                          context,
+                          controller,
+                          orderId,
+                        ),
+                  icon: assigning
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.person_add_alt_1_rounded),
+                  label: Text(
+                    assigning ? 'جاري التكليف...' : 'تكليف إجباري لسائق',
+                  ),
+                );
+              }),
+            ),
+          ],
           if (statusRaw == 'processing') ...[
             const SizedBox(height: 12),
             SizedBox(
@@ -337,6 +386,7 @@ class _StatusPill extends StatelessWidget {
   Color get _color {
     if (controller.isDelivered(row)) return Colors.green.shade700;
     if (controller.isDelivering(row)) return Colors.blue.shade700;
+    if (controller.isAssignmentFailed(row)) return Colors.red.shade700;
     if (controller.isSearchingDriver(row)) return Colors.orange.shade700;
 
     final status = '${row['status'] ?? ''}'.toLowerCase().trim();
@@ -366,6 +416,162 @@ class _StatusPill extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _showForceAssignDialog(
+  BuildContext context,
+  DeliveryTrackingController controller,
+  int orderId,
+) async {
+  await controller.fetchForceDrivers(force: true);
+  if (!context.mounted) return;
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) {
+      return Directionality(
+        textDirection: TextDirection.rtl,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * .78,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 44,
+                height: 5,
+                margin: const EdgeInsets.only(top: 10, bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.black12,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'اختر سائق للتكليف الإجباري',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+                child: Text(
+                  'ملاحظة: التكليف الإجباري يتجاوز نظام الأقرب، ويلغي أي عروض معلقة لنفس الطلب، ثم يثبت الطلب على السائق المختار.',
+                  style: TextStyle(color: Colors.black54, height: 1.35),
+                ),
+              ),
+              Expanded(
+                child: Obx(() {
+                  if (controller.forceDriversLoading.value &&
+                      controller.forceDrivers.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (controller.forceDrivers.isEmpty) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('لا يوجد سائقين مفعلين في هذا الفرع'),
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
+                    itemCount: controller.forceDrivers.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) {
+                      final d = controller.forceDrivers[i];
+                      final driverId = int.tryParse('${d['id'] ?? 0}') ?? 0;
+                      final name = '${d['name'] ?? 'سائق'}';
+                      final phone = '${d['phone'] ?? '-'}';
+                      final online = '${d['is_online'] ?? 0}' == '1';
+                      final activeOrders =
+                          int.tryParse('${d['active_orders'] ?? 0}') ?? 0;
+                      final branch = '${d['branch_name'] ?? '-'}';
+
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF7F5F3),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.black.withOpacity(.05),
+                          ),
+                        ),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: online
+                                ? Colors.green.withOpacity(.12)
+                                : Colors.grey.withOpacity(.16),
+                            child: Icon(
+                              Icons.delivery_dining_rounded,
+                              color: online
+                                  ? Colors.green.shade700
+                                  : Colors.grey.shade700,
+                            ),
+                          ),
+                          title: Text(
+                            name,
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                          subtitle: Text(
+                            '$phone\nالفرع: $branch | ${online ? 'متصل' : 'غير متصل'} | طلبات نشطة: $activeOrders',
+                          ),
+                          isThreeLine: true,
+                          trailing: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: DeliveryTrackingView.primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: driverId <= 0
+                                ? null
+                                : () async {
+                                    final ok = await controller
+                                        .forceAssignDriver(
+                                          orderId: orderId,
+                                          driverId: driverId,
+                                        );
+                                    if (ok && context.mounted) {
+                                      Navigator.pop(context);
+                                    }
+                                  },
+                            child: const Text('تكليف'),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                }),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _EmptyState extends StatelessWidget {
